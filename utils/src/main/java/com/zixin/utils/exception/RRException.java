@@ -11,12 +11,10 @@ package com.zixin.utils.exception;
 import lombok.Getter;
 import lombok.Setter;
 
-import java.io.Serial;
 
 @Getter
 @Setter
 public class RRException extends RuntimeException {
-	@Serial
     private static final long serialVersionUID = 1L;
 	
     private String msg;
