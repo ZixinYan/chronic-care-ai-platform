@@ -3,7 +3,7 @@ package com.zixin.accountapi.dto;
 import lombok.Data;
 
 @Data
-public class LogInRequest {
-    private  String username;
+public class LoginRequest {
+    private  String loginAccount;
     private String password;
 }

@@ -1,9 +1,9 @@
 package com.zixin.accountapi.dto;
 
+import com.zixin.utils.utils.BaseResponse;
 import lombok.Data;
 
-@Data
-public class UpdatePasswordResponse {
-    private boolean msg;
+public class UpdatePasswordResponse extends BaseResponse {
+
 
 }

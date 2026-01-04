@@ -1,16 +1,17 @@
 package com.zixin.accountapi.dto;
 
 import com.alibaba.fastjson2.JSON;
-import com.baomidou.mybatisplus.annotation.TableLogic;
-import com.baomidou.mybatisplus.annotation.Version;
-import com.zixin.accountapi.po.User;
+import com.zixin.utils.utils.BaseResponse;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
 
 import java.util.Date;
+import java.util.List;
 
+@EqualsAndHashCode(callSuper = true)
 @Data
-public class GetUserInfoResponse {
-   private UserInfoDTO[] users;
+public class GetUserInfoResponse extends BaseResponse {
+   private List<UserInfoDTO> users;
 
 
    @Data
@@ -26,5 +27,7 @@ public class GetUserInfoResponse {
        private Date createTime;
        private Date updateTime;
        private JSON ext;
+
+
    }
 }

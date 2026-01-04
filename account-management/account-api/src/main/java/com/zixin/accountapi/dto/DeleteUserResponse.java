@@ -1,9 +1,8 @@
 package com.zixin.accountapi.dto;
 
 
-import lombok.Data;
+import com.zixin.utils.utils.BaseResponse;
 
-@Data
-public class DeleteUserResponse {
-    private Boolean msg;
+public class DeleteUserResponse extends BaseResponse {
+
 }

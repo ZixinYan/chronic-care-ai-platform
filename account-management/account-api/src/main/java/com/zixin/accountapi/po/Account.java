@@ -10,8 +10,8 @@ import java.util.Date;
 
 @Data
 @TableName("`care_platform_user`")
-public class User {
-    private Long userId;
+public class Account {
+    private Long accountId;
     private String username;
     private String nickname;
     private Integer gender;
@@ -21,6 +21,7 @@ public class User {
     private String avatarUrl;
     private String address;
     private Date birthday;
+    private String idCard;
     private Date createTime;
     private Date updateTime;
     @TableLogic

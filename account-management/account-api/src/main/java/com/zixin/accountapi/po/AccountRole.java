@@ -5,8 +5,8 @@ import lombok.Data;
 
 @Data
 @TableName("care_platform_user_role")
-public class UserRole {
-    private Long userRoleId;
+public class AccountRole {
+    private Long accountRoleId;
     private Long userId;
     private Long roleId;
 }

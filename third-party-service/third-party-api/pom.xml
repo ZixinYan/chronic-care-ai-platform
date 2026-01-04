@@ -4,16 +4,19 @@
     <modelVersion>4.0.0</modelVersion>
     <parent>
         <groupId>com.zixin</groupId>
-        <artifactId>account-management</artifactId>
+        <artifactId>third-party-service</artifactId>
         <version>0.0.1-SNAPSHOT</version>
     </parent>
     <groupId>com.zixin</groupId>
-    <artifactId>account-api</artifactId>
+    <artifactId>third-party-api</artifactId>
     <version>0.0.1-SNAPSHOT</version>
-    <name>account-api</name>
+    <name>third-party-api</name>
+    <description>third-party-api</description>
     <packaging>jar</packaging>
-    <description>account-api</description>
 
+    <properties>
+        <java.version>17</java.version>
+    </properties>
     <dependencies>
         <dependency>
             <groupId>com.zixin</groupId>
@@ -30,4 +33,5 @@
             </plugin>
         </plugins>
     </build>
+
 </project>

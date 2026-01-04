@@ -1,8 +1,9 @@
 package com.zixin.accountapi.dto;
 
+import com.zixin.utils.utils.BaseResponse;
 import lombok.Data;
 
-@Data
-public class RegisterResponse {
-    private boolean msg;
+
+public class RegisterResponse extends BaseResponse {
+
 }

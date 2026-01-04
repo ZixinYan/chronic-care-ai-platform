@@ -9,16 +9,15 @@
     </parent>
 
     <groupId>com.zixin</groupId>
-    <artifactId>account-management</artifactId>
+    <artifactId>third-party-service</artifactId>
     <version>0.0.1-SNAPSHOT</version>
-    <name>account-management</name>
-    <description>account-management</description>
+    <name>third-party-service</name>
+    <description>third-party-service</description>
     <packaging>pom</packaging>
 
-
     <modules>
-        <module>account-api</module>
-        <module>account-provider</module>
+        <module>third-party-api</module>
+        <module>third-party-provider</module>
     </modules>
 
 </project>

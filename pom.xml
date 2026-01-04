@@ -23,6 +23,7 @@
 
     <modules>
         <module>account-management</module>
+        <module>third-party-service</module>
         <module>utils</module>
     </modules>
 

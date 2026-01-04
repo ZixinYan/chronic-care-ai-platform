@@ -1,8 +1,8 @@
 package com.zixin.accountapi.dto;
 
+import com.zixin.utils.utils.BaseResponse;
 import lombok.Data;
 
-@Data
-public class UpdateUserInfoResponse {
-    private boolean msg;
+public class UpdateUserInfoResponse extends BaseResponse {
+
 }
