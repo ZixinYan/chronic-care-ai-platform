@@ -1,0 +1,61 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: api-gateway
+
+  main:
+    web-application-type: reactive
+
+  cloud:
+    nacos:
+      discovery:
+        server-addr: 192.168.35.128:8848
+        namespace: 48126882-0e93-4746-b265-ab232bf8d85e
+        group: DEV_GROUP
+    sentinel:
+      enabled: true
+      eager: true
+      transport:
+        dashboard: 192.168.35.128:8858
+        port: 8719
+      datasource:
+        gw-flow:
+          nacos:
+            server-addr: 192.168.35.128:8848
+            namespace: 48126882-0e93-4746-b265-ab232bf8d85e
+            group-id: DEV_GROUP
+            data-id: sentinel-gateway-flow.json
+            rule-type: gw-flow
+        degrade:
+          nacos:
+            server-addr: 192.168.35.128:8848
+            namespace: 48126882-0e93-4746-b265-ab232bf8d85e
+            group-id: DEV_GROUP
+            data-id: sentinel-degrade.json
+            rule-type: degrade
+
+    gateway:
+      discovery:
+        locator:
+          enabled: true
+          lower-case-service-id: true
+
+      forwarded:
+        enabled: true
+
+      routes:
+        - id: account-service
+          uri: lb://account-service
+          predicates:
+            - Path=/account/**
+          filters:
+            - StripPrefix=1
+
+        - id: order-service
+          uri: lb://order-service
+          predicates:
+            - Path=/order/**
+          filters:
+            - StripPrefix=1

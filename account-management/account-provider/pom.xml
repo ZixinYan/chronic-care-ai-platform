@@ -84,6 +84,12 @@
             <artifactId>hutool-all</artifactId>
             <version>5.8.36</version>
         </dependency>
+        <!-- 链路分析 -->
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>micrometer-tracing-bridge-otel</artifactId>
+        </dependency>
+
     </dependencies>
 
     <build>
