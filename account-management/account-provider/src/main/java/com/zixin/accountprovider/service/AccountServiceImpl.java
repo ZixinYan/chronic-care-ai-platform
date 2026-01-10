@@ -194,17 +194,28 @@ public class AccountServiceImpl extends ServiceImpl<AccountMapper, Account> impl
 
     @Override
     public UpdatePasswordResponse updatePassword(UpdatePasswordRequest updatePasswordRequest) {
-        return null;
-    }
-
-    @Override
-    public UpdateEmailResponse updateEmail(UpdateEmailRequest updateEmailRequest) {
-        return null;
-    }
-
-    @Override
-    public UpdatePhoneResponse updatePhone(UpdatePhoneRequest updatePhoneRequest) {
-        return null;
+        Long userId = updatePasswordRequest.getUserId();
+        String oldPassword = updatePasswordRequest.getOldPassword();
+        Account account = new Account();
+        UpdatePasswordResponse updatePasswordResponse = new UpdatePasswordResponse();
+        try {
+            account = this.baseMapper.selectById(userId);
+            if (!oldPassword.equals(account.getPassword())) {
+                log.error("fail to update password, old password is wrong");
+                updatePasswordResponse.setCode(ToBCodeEnum.FAIL);
+                updatePasswordResponse.setMessage("old password is wrong");
+                return updatePasswordResponse;
+            }
+            account.setPassword(oldPassword);
+            this.baseMapper.updateById(account);
+        }catch (Exception e){
+            log.error("fail to update password, error:{}",e.getMessage());
+            updatePasswordResponse.setCode(ToBCodeEnum.FAIL);
+            updatePasswordResponse.setMessage(e.getMessage());
+            return updatePasswordResponse;
+        }
+        updatePasswordResponse.setCode(ToBCodeEnum.SUCCESS);
+        return updatePasswordResponse;
     }
 
     @Override

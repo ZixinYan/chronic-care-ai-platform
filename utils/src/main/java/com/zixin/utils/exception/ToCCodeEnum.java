@@ -7,7 +7,8 @@ import lombok.Getter;
  */
 @Getter
 public enum ToCCodeEnum {
-    UNKNOWN_EXCEPTION(10000, "系统未知错误");
+    UNKNOWN_EXCEPTION(10000, "系统未知错误"),
+    TOO_MANY_REQUEST(9999, "服务器受不了了，过会儿再来吧");
 
 
     private final Integer code;

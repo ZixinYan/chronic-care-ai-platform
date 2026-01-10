@@ -28,8 +28,6 @@ public interface AccountManagementAPI {
      */
     UpdateUserInfoResponse updateUserInfo(UpdateUserInfoRequest updateUserInfoRequest);
     UpdatePasswordResponse updatePassword(UpdatePasswordRequest updatePasswordRequest);
-    UpdateEmailResponse updateEmail(UpdateEmailRequest updateEmailRequest);
-    UpdatePhoneResponse updatePhone(UpdatePhoneRequest updatePhoneRequest);
     /**
      * 删除用户
      * @param deleteUserRequest
