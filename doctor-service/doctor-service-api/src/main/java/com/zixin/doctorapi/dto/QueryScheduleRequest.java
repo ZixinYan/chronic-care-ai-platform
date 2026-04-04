@@ -12,12 +12,12 @@ public class QueryScheduleRequest implements Serializable {
     private static final long serialVersionUID = 1L;
     
     /**
-     * 医生ID
+     * 医生用户 ID
      */
     private Long doctorId;
     
     /**
-     * 日期 (可选，格式: YYYY-MM-DD)
+     * 日期
      */
     private String scheduleDay;
     

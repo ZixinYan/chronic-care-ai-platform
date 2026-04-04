@@ -21,7 +21,9 @@ import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * 用户身份信息服务实现
@@ -200,6 +202,49 @@ public class UserIdentityServiceImpl implements UserIdentityAPI {
 
         // 7. 赋值
         response.setPatients(pageUtils);
+
+        return response;
+    }
+
+    @Override
+    public GetAllDoctorsResponse getAllDoctors() {
+        GetAllDoctorsResponse response = new GetAllDoctorsResponse();
+
+        try {
+            // 查询所有医生
+            LambdaQueryWrapper<Doctor> wrapper = new LambdaQueryWrapper<>();
+            wrapper.orderByAsc(Doctor::getDepartment);
+            List<Doctor> doctors = doctorMapper.selectList(wrapper);
+
+            if (doctors == null || doctors.isEmpty()) {
+                response.setCode(ToBCodeEnum.SUCCESS);
+                response.setMessage("暂无医生数据");
+                response.setDoctors(new ArrayList<>());
+                return response;
+            }
+
+            // 组装VO列表
+            List<DoctorVO> doctorVOList = doctors.stream().map(doctor -> {
+                User user = userMapper.selectById(doctor.getUserId());
+                DoctorVO vo = new DoctorVO();
+                BeanUtils.copyProperties(doctor, vo);
+                if (user != null) {
+                    BeanUtils.copyProperties(user, vo);
+                    vo.setUsername(user.getUsername());
+                }
+                return vo;
+            }).collect(Collectors.toList());
+
+            response.setCode(ToBCodeEnum.SUCCESS);
+            response.setMessage("查询成功");
+            response.setDoctors(doctorVOList);
+
+            log.info("Get all doctors success, count: {}", doctorVOList.size());
+        } catch (Exception e) {
+            log.error("Get all doctors error", e);
+            response.setCode(ToBCodeEnum.FAIL);
+            response.setMessage("查询医生列表异常: " + e.getMessage());
+        }
 
         return response;
     }

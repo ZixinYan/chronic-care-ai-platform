@@ -29,14 +29,15 @@ public class LoginResponse extends BaseResponse implements Serializable {
         private String address;
         private String IdCard;
         private Long birthday;
-        private List<Integer> role;
+        private List<String> role;
         private Set<String> permission;
         private JSON ext;
 
-        public LoginUserDTO(Long userId, String username, String nickname, String email, Integer gender, String avatarUrl, String address, Long birthday,String idcard, List<Integer> role, Set<String> permission, JSON ext) {
+        public LoginUserDTO(Long userId, String username, String nickname, String phone, String email, Integer gender, String avatarUrl, String address, Long birthday,String idcard, List<String> role, Set<String> permission, JSON ext) {
             this.userId = userId;
             this.username = username;
             this.nickname = nickname;
+            this.phone = phone;
             this.email = email;
             this.gender = gender;
             this.avatarUrl = avatarUrl;

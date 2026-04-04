@@ -8,17 +8,6 @@ import com.zixin.doctorapi.dto.*;
  * 提供医生日程管理、AI日程推荐等功能
  */
 public interface DoctorWorkbenchAPI {
-    
-    /**
-     * AI生成日程建议
-     * 
-     * 根据医生的历史数据、患者预约情况等，AI智能推荐日程安排
-     *
-     * @param request 生成日程请求
-     * @return AI推荐的日程列表
-     */
-    GenerateScheduleResponse generateScheduleSuggestion(GenerateScheduleRequest request);
-    
     /**
      * 查询医生日程
      * 

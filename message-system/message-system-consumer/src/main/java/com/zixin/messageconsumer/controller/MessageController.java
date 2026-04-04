@@ -3,6 +3,7 @@ package com.zixin.messageconsumer.controller;
 import com.zixin.messageapi.api.MessageAPI;
 import com.zixin.messageapi.dto.*;
 import com.zixin.messageapi.vo.MessageVO;
+import com.zixin.messageconsumer.client.EmailClient;
 import com.zixin.utils.context.UserInfoManager;
 import com.zixin.utils.exception.ToBCodeEnum;
 import com.zixin.utils.utils.Result;
@@ -32,42 +33,78 @@ public class MessageController {
     
     @DubboReference(check = false)
     private MessageAPI messageAPI;
-    
+
+    private final EmailClient emailClient;
+
+    public MessageController(EmailClient emailClient) {
+        this.emailClient = emailClient;
+    }
+
     /**
      * 查询收件箱
      *
-     * @param request 查询条件
      * @return 消息列表
      */
     @GetMapping("/inbox")
-    public Result<?> queryInbox(@RequestBody QueryMessageRequest request) {
+    public Result<?> queryInbox(
+            @RequestParam(value = "pageNum", defaultValue = "1") Integer pageNum,
+            @RequestParam(value = "pageSize", defaultValue = "10") Integer pageSize,
+            @RequestParam(value = "unreadOnly", required = false) Boolean unreadOnly,
+            @RequestParam(value = "messageType", required = false) Integer messageType) {
         Long userId = UserInfoManager.getUserId();
-        log.info("Query inbox request, userId: {}", userId);
+        log.info("Query inbox request, userId: {}, pageNum: {}, pageSize: {}", userId, pageNum, pageSize);
+        
+        QueryMessageRequest request = new QueryMessageRequest();
+        request.setPageNum(pageNum);
+        request.setPageSize(pageSize);
+        request.setUnreadOnly(unreadOnly);
+        request.setMessageType(messageType);
+        
         QueryMessageResponse response = messageAPI.queryInbox(userId, request);
+        
+        if (response == null || response.getCode() == null) {
+            log.error("Query inbox failed: response is null, userId: {}", userId);
+            return Result.error("服务调用异常，请稍后重试");
+        }
         
         if (response.getCode().equals(ToBCodeEnum.SUCCESS)) {
             return Result.success(response.getMessageList());
         } else {
-            return Result.error();
+            log.warn("Query inbox failed: {}, userId: {}", response.getMessage(), userId);
+            return Result.error(response.getMessage());
         }
     }
     
     /**
      * 查询发件箱
      *
-     * @param request 查询条件
      * @return 消息列表
      */
     @GetMapping("/sent")
-    public Result<?> querySentBox(@RequestBody QueryMessageRequest request) {
+    public Result<?> querySentBox(
+            @RequestParam(value = "pageNum", defaultValue = "1") Integer pageNum,
+            @RequestParam(value = "pageSize", defaultValue = "10") Integer pageSize,
+            @RequestParam(value = "messageType", required = false) Integer messageType) {
         Long userId = UserInfoManager.getUserId();
-        log.info("Query sent box request, userId: {}", userId);
+        log.info("Query sent box request, userId: {}, pageNum: {}, pageSize: {}", userId, pageNum, pageSize);
+        
+        QueryMessageRequest request = new QueryMessageRequest();
+        request.setPageNum(pageNum);
+        request.setPageSize(pageSize);
+        request.setMessageType(messageType);
+        
         QueryMessageResponse response = messageAPI.querySentBox(userId, request);
+        
+        if (response == null || response.getCode() == null) {
+            log.error("Query sent box failed: response is null, userId: {}", userId);
+            return Result.error("服务调用异常，请稍后重试");
+        }
         
         if (response.getCode().equals(ToBCodeEnum.SUCCESS)) {
             return Result.success(response.getMessageList());
         } else {
-            return Result.error();
+            log.warn("Query sent box failed: {}, userId: {}", response.getMessage(), userId);
+            return Result.error(response.getMessage());
         }
     }
     
@@ -83,10 +120,21 @@ public class MessageController {
         log.info("Get message detail request, messageId: {}, userId: {}", messageId, userId);
         GetMessageDetailResponse response = messageAPI.getMessageDetail(userId, messageId);
         
+        if (response == null) {
+            log.error("Get message detail failed: response is null, messageId: {}, userId: {}", messageId, userId);
+            return Result.error("服务调用异常，请稍后重试");
+        }
+        
+        if (response.getCode() == null) {
+            log.error("Get message detail failed: code is null, messageId: {}, userId: {}", messageId, userId);
+            return Result.error("服务调用异常，请稍后重试");
+        }
+        
         if (response.getCode().equals(ToBCodeEnum.SUCCESS)) {
             return Result.success(response.getMessageVO());
         } else {
-            return Result.error();
+            log.warn("Get message detail failed: {}, messageId: {}, userId: {}", response.getMessage(), messageId, userId);
+            return Result.error(response.getMessage());
         }
     }
     
@@ -102,10 +150,16 @@ public class MessageController {
         log.info("Mark as read request, messageId: {}, userId: {}", messageId, userId);
         MarkAsReadResponse response = messageAPI.markAsRead(userId, messageId);
         
+        if (response == null || response.getCode() == null) {
+            log.error("Mark as read failed: response is null, messageId: {}, userId: {}", messageId, userId);
+            return Result.error("服务调用异常，请稍后重试");
+        }
+        
         if (response.getCode().equals(ToBCodeEnum.SUCCESS)) {
             return Result.success();
         } else {
-            return Result.error();
+            log.warn("Mark as read failed: {}, messageId: {}, userId: {}", response.getMessage(), messageId, userId);
+            return Result.error(response.getMessage());
         }
     }
     
@@ -121,10 +175,16 @@ public class MessageController {
         log.info("Batch mark as read request, userId: {}, count: {}", userId, messageIds.size());
         MarkAsReadResponse response = messageAPI.batchMarkAsRead(userId, messageIds);
         
+        if (response == null || response.getCode() == null) {
+            log.error("Batch mark as read failed: response is null, userId: {}", userId);
+            return Result.error("服务调用异常，请稍后重试");
+        }
+        
         if (response.getCode().equals(ToBCodeEnum.SUCCESS)) {
             return Result.success();
         } else {
-            return Result.error();
+            log.warn("Batch mark as read failed: {}, userId: {}", response.getMessage(), userId);
+            return Result.error(response.getMessage());
         }
     }
     
@@ -140,10 +200,16 @@ public class MessageController {
         log.info("Delete message request, messageId: {}, userId: {}", messageId, userId);
         DeleteMessageResponse response = messageAPI.deleteMessage(userId, messageId);
         
+        if (response == null || response.getCode() == null) {
+            log.error("Delete message failed: response is null, messageId: {}, userId: {}", messageId, userId);
+            return Result.error("服务调用异常，请稍后重试");
+        }
+        
         if (response.getCode().equals(ToBCodeEnum.SUCCESS)) {
             return Result.success();
         } else {
-            return Result.error();
+            log.warn("Delete message failed: {}, messageId: {}, userId: {}", response.getMessage(), messageId, userId);
+            return Result.error(response.getMessage());
         }
     }
     
@@ -159,10 +225,16 @@ public class MessageController {
         log.info("Batch delete message request, userId: {}, count: {}", userId, messageIds.size());
         DeleteMessageResponse response = messageAPI.batchDeleteMessage(userId, messageIds);
         
+        if (response == null || response.getCode() == null) {
+            log.error("Batch delete message failed: response is null, userId: {}", userId);
+            return Result.error("服务调用异常，请稍后重试");
+        }
+        
         if (response.getCode().equals(ToBCodeEnum.SUCCESS)) {
             return Result.success();
         } else {
-            return Result.error();
+            log.warn("Batch delete message failed: {}, userId: {}", response.getMessage(), userId);
+            return Result.error(response.getMessage());
         }
     }
     
@@ -176,10 +248,27 @@ public class MessageController {
         log.info("Get unread count request, userId: {}", userId);
         UnreadCountResponse response = messageAPI.getUnreadCount(userId);
         
+        if (response == null || response.getCode() == null) {
+            log.error("Get unread count failed: response is null, userId: {}", userId);
+            return Result.error("服务调用异常，请稍后重试");
+        }
+        
         if (response.getCode().equals(ToBCodeEnum.SUCCESS)) {
             return Result.success(response.getUnreadCount());
         } else {
-            return Result.error();
+            log.warn("Get unread count failed: {}, userId: {}", response.getMessage(), userId);
+            return Result.error(response.getMessage());
         }
+    }
+
+    /**
+     * 异步发送邮件
+     */
+    @PostMapping("/send_email")
+    public Result<Boolean> sendEmail(@RequestParam("message") String content, @RequestParam("receiverId") Long to, @RequestParam("title") String title) {
+        if(emailClient.sendEmail(UserInfoManager.getUserId(), to, UserInfoManager.getUsername(), title, content)){
+            return Result.success();
+        }
+        return Result.error();
     }
 }

@@ -1,5 +1,6 @@
 package com.zixin.utils.exception;
 
+import com.fasterxml.jackson.annotation.JsonValue;
 import lombok.Getter;
 
 /**
@@ -18,4 +19,8 @@ public enum ToBCodeEnum {
         this.message = message;
     }
 
+    @JsonValue
+    public int getCode() {
+        return code;
+    }
 }

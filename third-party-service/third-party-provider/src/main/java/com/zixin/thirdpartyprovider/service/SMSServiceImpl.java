@@ -18,6 +18,7 @@ import java.util.Map;
 
 @DubboService
 @Slf4j
+@Service
 public class SMSServiceImpl implements SMSAPI {
     @Value("${spring.cloud.alicloud.sms.host}")
     private String host;
@@ -25,33 +26,18 @@ public class SMSServiceImpl implements SMSAPI {
     private String path;
     @Value("${spring.cloud.alicloud.sms.app_code}")
     private String appCode;
-    @Value("${spring.cloud.alicloud.sms.tpl_id}")
-    private String tpl_id;
-
     @Override
     public SendSMSResponse sendSMS(SendSMSRequest sendSMSRequest) {
         SendSMSResponse sendSMSResponse = new SendSMSResponse();
-
-        // String host = "https://send.market.alicloudapi.com";
-        // String path = "/sms/send";
         String method = "POST";
-        // String appcode = "45784e7cf368430caa9236e042d41bf2";
+        // 根据阿里云短信服务的API文档，构建请求头和查询参数
         Map<String, String> headers = new HashMap<String, String>();
-        //最后在header中的格式(中间是英文空格)为Authorization:APPCODE 83359fd73fe94948385f570e3c139105
         headers.put("Authorization", "APPCODE " + appCode);
-        //根据API的要求，定义相对应的Content-Type
-        headers.put("Content-Type", "application/x-www-form-urlencoded; charset=UTF-8");
+        // 根据阿里云短信服务的API文档，构建查询参数
         Map<String, String> querys = new HashMap<String, String>();
+        querys.put("content", "【健康智能小助手】杂鱼大哥哥，你的验证码是：" + sendSMSRequest.getCode()+ "，5分钟内有效！");
+        querys.put("mobile", sendSMSRequest.getPhone());
         Map<String, String> bodys = new HashMap<String, String>();
-        bodys.put("content", "code:"+ sendSMSRequest.getCode());
-        if (sendSMSRequest.getTemplateId() == null) {
-            bodys.put("templateid", tpl_id);
-        } else {
-            bodys.put("templateid", sendSMSRequest.getTemplateId());
-        }
-        bodys.put("mobile", sendSMSRequest.getPhone());
-
-
         try {
             HttpResponse response = HttpUtils.doPost(host, path, method, headers, querys, bodys);
             log.info(response.toString());

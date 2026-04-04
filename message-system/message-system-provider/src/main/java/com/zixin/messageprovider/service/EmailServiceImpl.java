@@ -1,18 +1,16 @@
 package com.zixin.messageprovider.service;
 
-import com.zixin.accountapi.api.AccountManagementAPI;
-import com.zixin.accountapi.dto.GetUserInfoRequest;
 import com.zixin.accountapi.dto.GetUserInfoResponse;
 import com.zixin.messageapi.api.EmailAPI;
 import com.zixin.messageapi.dto.SendMessageRequest;
 import com.zixin.messageapi.dto.SendMessageResponse;
 import com.zixin.messageapi.enums.MessageType;
+import com.zixin.messageprovider.client.AccountClient;
+import com.zixin.messageprovider.client.EmailClient;
 import com.zixin.thirdpartyapi.dto.SendEmailRequest;
-import com.zixin.thirdpartyapi.dto.SendEmailResponse;
 import com.zixin.utils.exception.ToBCodeEnum;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.dubbo.config.annotation.DubboReference;
 import org.apache.dubbo.config.annotation.DubboService;
 import org.springframework.stereotype.Service;
 
@@ -34,13 +32,10 @@ import java.util.List;
 @RequiredArgsConstructor
 public class EmailServiceImpl implements EmailAPI {
 
-    @DubboReference
-    private com.zixin.thirdpartyapi.api.EmailAPI thirdPartyEmailAPI;
-
-    @DubboReference(check = false)
-    private AccountManagementAPI accountManagementAPI;
 
     private final MessageServiceImpl messageService;
+    private final AccountClient accountClient;
+    private final EmailClient emailClient;
 
     @Override
     public SendMessageResponse sendEmailMessage(Long senderId, SendMessageRequest request) {
@@ -74,15 +69,11 @@ public class EmailServiceImpl implements EmailAPI {
             emailRequest.setTo(receiverEmail);
             emailRequest.setTheme(request.getTitle());
             emailRequest.setContent(request.getContent());
-            
-            SendEmailResponse emailResponse = thirdPartyEmailAPI.sendHTMLMail(emailRequest);
-            
+
             // 检查邮件发送结果
-            if (!ToBCodeEnum.SUCCESS.equals(emailResponse.getCode())) {
-                log.error("Send email failed, receiverId: {}, error: {}", 
-                        request.getReceiverId(), emailResponse.getMessage());
+            if (emailClient.sendEmailByKafka(emailRequest)) {
                 response.setCode(ToBCodeEnum.FAIL);
-                response.setMessage("邮件发送失败: " + emailResponse.getMessage());
+                response.setMessage("邮件发送失败");
                 return response;
             }
             
@@ -157,17 +148,12 @@ public class EmailServiceImpl implements EmailAPI {
                     emailRequest.setTo(receiverEmail);
                     emailRequest.setTheme(request.getTitle());
                     emailRequest.setContent(request.getContent());
-                    
-                    SendEmailResponse emailResponse = thirdPartyEmailAPI.sendHTMLMail(emailRequest);
-                    
-                    if (ToBCodeEnum.SUCCESS.equals(emailResponse.getCode())) {
-                        successCount++;
-                    } else {
-                        log.error("Send email to receiver failed, receiverId: {}, error: {}", 
-                                receiverId, emailResponse.getMessage());
-                        failedReceiverIds.add(receiverId);
+
+                    if (emailClient.sendEmailByKafka(emailRequest)) {
+                        response.setCode(ToBCodeEnum.FAIL);
+                        response.setMessage("邮件发送失败");
+                        return response;
                     }
-                    
                 } catch (Exception e) {
                     log.error("Send email to receiver error, receiverId: {}", receiverId, e);
                     failedReceiverIds.add(receiverId);
@@ -206,20 +192,7 @@ public class EmailServiceImpl implements EmailAPI {
     private String getReceiverEmail(Long receiverId) {
         try {
             // 调用账户管理服务获取用户信息
-            GetUserInfoRequest request = new GetUserInfoRequest();
-            request.setUserIds(Collections.singletonList(receiverId));
-            
-            GetUserInfoResponse response = accountManagementAPI.getUserInfo(request);
-            
-            // 检查响应结果
-            if (!ToBCodeEnum.SUCCESS.equals(response.getCode())) {
-                log.error("Failed to get user info from account service, receiverId: {}, error: {}", 
-                        receiverId, response.getMessage());
-                return null;
-            }
-            
-            // 获取用户列表
-            List<GetUserInfoResponse.UserInfoDTO> users = response.getUsers();
+            List<GetUserInfoResponse.UserInfoDTO> users  = accountClient.getUserInfo(Collections.singletonList(receiverId));
             if (users == null || users.isEmpty()) {
                 log.warn("User not found, receiverId: {}", receiverId);
                 return null;

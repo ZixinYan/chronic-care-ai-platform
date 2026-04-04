@@ -230,6 +230,12 @@ public class MessageServiceImpl implements MessageAPI {
                 // 只查询未读消息
                 wrapper.eq(Message::getStatus, MessageStatus.UNREAD.getCode());
             }
+
+            // 按照发送人分类
+            if (request.getUserId() != null){
+                wrapper.eq(Message::getSenderId, request.getUserId());
+            }
+
             // 按时间倒序
             wrapper.orderByDesc(Message::getCreateTime);
 
@@ -283,44 +289,75 @@ public class MessageServiceImpl implements MessageAPI {
                     userId, request.getPageNum(), request.getPageSize(),
                     request.getMessageType());
 
-            // 创建分页参数
             Page<Message> page = new Page<>(request.getPageNum(), request.getPageSize());
 
-            // 构建查询条件
             LambdaQueryWrapper<Message> wrapper = Wrappers.lambdaQuery();
 
-            // 发件人条件
             wrapper.eq(Message::getSenderId, userId);
 
-            // 消息类型条件（可选）
             if (request.getMessageType() != null) {
                 wrapper.eq(Message::getMessageType, request.getMessageType());
             }
 
-            // 按时间倒序
+            if (request.getUserId() != null){
+                wrapper.eq(Message::getReceiverId, request.getUserId());
+            }
+
             wrapper.orderByDesc(Message::getCreateTime);
 
-            // 执行分页查询
             IPage<Message> messagePage = messageMapper.selectPage(page, wrapper);
 
-            // 转换为VO
-            List<MessageVO> voList = messagePage.getRecords().stream()
-                    .map(this::convertToVO)
-                    .filter(messageVO -> {
-                        // 过滤掉已撤回的消息
-                        return messageVO.getStatus() != MessageStatus.REVOKED.getCode();
-                    })
-                    .collect(Collectors.toList());
+            List<MessageVO> voList = new ArrayList<>();
+            Map<Long, MessageVO> groupMessageMap = new java.util.HashMap<>();
+            List<Long> groupMessageIds = new ArrayList<>();
+            
+            for (Message message : messagePage.getRecords()) {
+                if (message.getStatus() == MessageStatus.REVOKED.getCode()) {
+                    continue;
+                }
+                
+                if (message.getIsBroadcast() != null && message.getIsBroadcast() == 1 
+                        && message.getGroupMessageId() != null) {
+                    Long groupId = message.getGroupMessageId();
+                    if (!groupMessageMap.containsKey(groupId)) {
+                        MessageVO vo = convertToVO(message);
+                        vo.setRecipientNames(new ArrayList<>());
+                        if (message.getReceiverName() != null) {
+                            vo.getRecipientNames().add(message.getReceiverName());
+                        }
+                        groupMessageMap.put(groupId, vo);
+                        groupMessageIds.add(groupId);
+                    } else {
+                        MessageVO existingVo = groupMessageMap.get(groupId);
+                        if (message.getReceiverName() != null) {
+                            existingVo.getRecipientNames().add(message.getReceiverName());
+                        }
+                    }
+                } else {
+                    MessageVO vo = convertToVO(message);
+                    if (message.getReceiverName() != null) {
+                        vo.setRecipientNames(java.util.Collections.singletonList(message.getReceiverName()));
+                    }
+                    voList.add(vo);
+                }
+            }
+            
+            for (Long groupId : groupMessageIds) {
+                voList.add(groupMessageMap.get(groupId));
+            }
+            
+            voList.sort((a, b) -> Long.compare(b.getCreateTime() != null ? b.getCreateTime() : 0, 
+                    a.getCreateTime() != null ? a.getCreateTime() : 0));
 
             log.info("Query sent box success, userId: {}, total: {}, currentPage: {}",
                     userId, messagePage.getTotal(), messagePage.getCurrent());
 
-            // 返回PageUtils格式
+            int totalCount = (int) messagePage.getTotal() - (int) (messagePage.getTotal() - voList.size());
             response.setCode(ToBCodeEnum.SUCCESS);
             response.setMessage("查询发件箱成功");
             response.setMessageList(new PageUtils(
                     voList,
-                    (int) messagePage.getTotal(),
+                    totalCount,
                     (int) messagePage.getSize(),
                     (int) messagePage.getCurrent())
             );
@@ -340,6 +377,7 @@ public class MessageServiceImpl implements MessageAPI {
         
         try {
             if (userId == null || messageId == null) {
+                log.warn("Get message detail failed: userId or messageId is null, userId: {}, messageId: {}", userId, messageId);
                 response.setCode(ToBCodeEnum.FAIL);
                 response.setMessage("参数不能为空");
                 return response;
@@ -347,24 +385,46 @@ public class MessageServiceImpl implements MessageAPI {
             
             Message message = messageMapper.selectById(messageId);
             if (message == null) {
+                log.warn("Get message detail failed: message not found, messageId: {}", messageId);
                 response.setCode(ToBCodeEnum.FAIL);
                 response.setMessage("消息不存在");
                 return response;
             }
             
-            // 验证权限：只有发送者或接收者可以查看
+            log.debug("Message found: messageId={}, senderId={}, receiverId={}", 
+                    message.getMessageId(), message.getSenderId(), message.getReceiverId());
+            
             if (!userId.equals(message.getSenderId()) && !userId.equals(message.getReceiverId())) {
+                log.warn("Get message detail failed: permission denied, userId: {}, messageId: {}, senderId: {}, receiverId: {}", 
+                        userId, messageId, message.getSenderId(), message.getReceiverId());
                 response.setCode(ToBCodeEnum.FAIL);
                 response.setMessage("无权限查看该消息");
                 return response;
             }
             MessageVO vo = convertToVO(message);
+            
+            if (message.getIsBroadcast() != null && message.getIsBroadcast() == 1 
+                    && message.getGroupMessageId() != null 
+                    && userId.equals(message.getSenderId())) {
+                LambdaQueryWrapper<Message> groupWrapper = Wrappers.lambdaQuery();
+                groupWrapper.eq(Message::getGroupMessageId, message.getGroupMessageId())
+                        .select(Message::getReceiverName);
+                List<Message> groupMessages = messageMapper.selectList(groupWrapper);
+                List<String> recipientNames = groupMessages.stream()
+                        .map(Message::getReceiverName)
+                        .filter(name -> name != null)
+                        .collect(Collectors.toList());
+                vo.setRecipientNames(recipientNames);
+            } else if (message.getReceiverName() != null) {
+                vo.setRecipientNames(java.util.Collections.singletonList(message.getReceiverName()));
+            }
+            
             log.info("Get message detail success, messageId: {}, userId: {}", messageId, userId);
             response.setCode(ToBCodeEnum.SUCCESS);
             response.setMessage("获取消息详情成功");
             response.setMessageVO(vo);
         } catch (Exception e) {
-            log.error("Get message detail error", e);
+            log.error("Get message detail error, userId: {}, messageId: {}", userId, messageId, e);
             response.setCode(ToBCodeEnum.FAIL);
             response.setMessage("获取消息详情异常: " + e.getMessage());
         }
@@ -379,6 +439,7 @@ public class MessageServiceImpl implements MessageAPI {
         
         try {
             if (userId == null || messageId == null) {
+                log.warn("Mark as read failed: userId or messageId is null, userId: {}, messageId: {}", userId, messageId);
                 response.setCode(ToBCodeEnum.FAIL);
                 response.setMessage("参数不能为空");
                 return response;
@@ -386,19 +447,23 @@ public class MessageServiceImpl implements MessageAPI {
             
             Message message = messageMapper.selectById(messageId);
             if (message == null) {
+                log.warn("Mark as read failed: message not found, messageId: {}", messageId);
                 response.setCode(ToBCodeEnum.FAIL);
                 response.setMessage("消息不存在");
                 return response;
             }
             
-            // 验证权限：只有接收者可以标记消息为已读
+            log.debug("Message found for mark as read: messageId={}, senderId={}, receiverId={}, requestUserId={}", 
+                    message.getMessageId(), message.getSenderId(), message.getReceiverId(), userId);
+            
             if (!userId.equals(message.getReceiverId())) {
+                log.warn("Mark as read failed: permission denied, userId: {} is not receiver, receiverId: {}", 
+                        userId, message.getReceiverId());
                 response.setCode(ToBCodeEnum.FAIL);
                 response.setMessage("只有接收者可以标记消息为已读");
                 return response;
             }
             
-            // 统一更新消息状态
             message.setStatus(MessageStatus.READ.getCode());
             message.setReadTime(System.currentTimeMillis());
             int rows = messageMapper.updateById(message);
@@ -408,7 +473,7 @@ public class MessageServiceImpl implements MessageAPI {
             response.setCode(ToBCodeEnum.SUCCESS);
             response.setMessage("标记已读成功");
         } catch (Exception e) {
-            log.error("Mark as read error", e);
+            log.error("Mark as read error, userId: {}, messageId: {}", userId, messageId, e);
             response.setCode(ToBCodeEnum.FAIL);
             response.setMessage("标记已读异常: " + e.getMessage());
         }

@@ -15,6 +15,10 @@ public class ScheduleVO implements Serializable {
      */
     private Long id;
     /**
+     * 医生ID
+     */
+    private Long doctorId;
+    /**
      * 医生姓名
      */
     private String doctorName;
@@ -79,4 +83,9 @@ public class ScheduleVO implements Serializable {
      * 结束时间
      */
     private Long endTime;
+
+    /**
+     * 患者ID
+     */
+    private Long patientId;
 }

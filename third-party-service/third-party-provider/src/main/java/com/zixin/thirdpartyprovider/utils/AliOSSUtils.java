@@ -168,8 +168,8 @@ public class AliOSSUtils {
 
 
     private String generatePresignedUrl(OSS ossClient, String objectName) {
-        // URL 有效期：1 小时
-        Date expiration = new Date(System.currentTimeMillis() + 3600_000);
+        // URL 有效期：10 年（足够长，避免频繁过期）
+        Date expiration = new Date(System.currentTimeMillis() + 365L * 24 * 60 * 60 * 1000 * 10);
         URL url = ossClient.generatePresignedUrl(
                 BUCKET_NAME, objectName, expiration);
         return url.toString();

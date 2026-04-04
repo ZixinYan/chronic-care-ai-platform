@@ -9,7 +9,7 @@ public class Enum {
      * 更新字段校验
      */
     public enum UpdateUserField {
-        nickname, gender, avatarUrl, address, birthday;
+        nickname, gender, avatar, address, birthday, email, password;
 
         private static final Set<String> FIELD_NAMES =
                 Arrays.stream(UpdateUserField.values())

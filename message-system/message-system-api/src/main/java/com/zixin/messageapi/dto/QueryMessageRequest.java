@@ -19,6 +19,11 @@ public class QueryMessageRequest implements Serializable {
      * 是否只查询未读消息
      */
     private Boolean unreadOnly;
+
+    /**
+     * 根据用户进行过滤
+     */
+    private Long userId;
     
     /**
      * 页码

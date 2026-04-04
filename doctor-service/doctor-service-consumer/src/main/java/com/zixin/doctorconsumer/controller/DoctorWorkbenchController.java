@@ -1,12 +1,10 @@
 package com.zixin.doctorconsumer.controller;
 
-import com.zixin.accountapi.po.User;
 import com.zixin.doctorapi.api.DoctorWorkbenchAPI;
 import com.zixin.doctorapi.dto.*;
 import com.zixin.doctorapi.vo.ScheduleVO;
 import com.zixin.utils.context.UserInfoManager;
 import com.zixin.utils.exception.ToBCodeEnum;
-import com.zixin.utils.security.RequirePermission;
 import com.zixin.utils.security.RequireRole;
 import com.zixin.utils.utils.Result;
 import lombok.extern.slf4j.Slf4j;
@@ -44,33 +42,6 @@ public class DoctorWorkbenchController {
 
         if (response.getCode() == ToBCodeEnum.SUCCESS) {
             return Result.success(true);
-        } else {
-            return Result.error(response.getMessage());
-        }
-    }
-
-    /**
-     * AI生成日程建议
-     * 医生登录后，AI根据后台数据生成日程表建议
-     * 安全策略:
-     * - 从X-User-Id Header获取医生ID,不使用请求参数中的doctorId
-     * - 防止医生为其他医生生成日程
-     * @param request 生成日程请求
-     * @return AI推荐的日程列表
-     */
-    @PostMapping("/schedule/generate")
-    @RequireRole("DOCTOR")
-    public Result<GenerateScheduleResponse> generateSchedule(
-            @RequestBody GenerateScheduleRequest request) {
-        request.setDoctorId(UserInfoManager.getUserId());
-        request.setDoctorName(UserInfoManager.getUsername());
-        log.info("Generate schedule request, doctorId: {}, date: {}",
-                UserInfoManager.getUserId(), request.getScheduleDay());
-
-        GenerateScheduleResponse response = workbenchAPI.generateScheduleSuggestion(request);
-
-        if (response.getCode() == ToBCodeEnum.SUCCESS) {
-            return Result.success(response);
         } else {
             return Result.error(response.getMessage());
         }

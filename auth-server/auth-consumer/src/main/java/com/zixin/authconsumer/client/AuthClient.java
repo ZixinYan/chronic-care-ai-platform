@@ -15,10 +15,10 @@ import org.springframework.stereotype.Service;
 @Service
 public class AuthClient {
     
-    @DubboReference
+    @DubboReference(timeout = 50000)
     private JwtAPI jwtAPI;
     
-    @DubboReference
+    @DubboReference(timeout = 50000)
     private TokenValidationAPI tokenValidationAPI;
 
     /**

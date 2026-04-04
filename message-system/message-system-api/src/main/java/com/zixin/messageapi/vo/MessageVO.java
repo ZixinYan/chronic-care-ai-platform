@@ -1,7 +1,10 @@
 package com.zixin.messageapi.vo;
 
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import com.fasterxml.jackson.databind.ser.std.ToStringSerializer;
+
 import java.io.Serializable;
-import java.util.Date;
+import java.util.List;
 
 import lombok.Data;
 
@@ -15,6 +18,7 @@ public class MessageVO implements Serializable {
     /**
      * 消息ID
      */
+    @JsonSerialize(using = ToStringSerializer.class)
     private Long messageId;
     
     /**
@@ -30,6 +34,7 @@ public class MessageVO implements Serializable {
     /**
      * 发送者ID
      */
+    @JsonSerialize(using = ToStringSerializer.class)
     private Long senderId;
     
     /**
@@ -40,12 +45,18 @@ public class MessageVO implements Serializable {
     /**
      * 接收者ID
      */
+    @JsonSerialize(using = ToStringSerializer.class)
     private Long receiverId;
     
     /**
      * 接收者名称
      */
     private String receiverName;
+    
+    /**
+     * 所有收件人名称列表(群发消息时使用)
+     */
+    private List<String> recipientNames;
     
     /**
      * 消息标题

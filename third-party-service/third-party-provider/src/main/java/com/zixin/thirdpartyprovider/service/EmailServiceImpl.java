@@ -24,6 +24,7 @@ import java.util.Date;
 import java.util.Properties;
 
 @Slf4j
+@Service
 @DubboService
 public class EmailServiceImpl implements EmailAPI {
     @Value("${spring.mail.from}")

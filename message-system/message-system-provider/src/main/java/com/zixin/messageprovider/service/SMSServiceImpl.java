@@ -7,6 +7,8 @@ import com.zixin.messageapi.api.SMSAPI;
 import com.zixin.messageapi.dto.SendMessageRequest;
 import com.zixin.messageapi.dto.SendMessageResponse;
 import com.zixin.messageapi.enums.MessageType;
+import com.zixin.messageprovider.client.AccountClient;
+import com.zixin.messageprovider.client.SMSClient;
 import com.zixin.messageprovider.config.SMSRateLimiter;
 import com.zixin.thirdpartyapi.dto.SendSMSRequest;
 import com.zixin.thirdpartyapi.dto.SendSMSResponse;
@@ -41,14 +43,10 @@ import java.util.List;
 @RequiredArgsConstructor
 public class SMSServiceImpl implements SMSAPI {
 
-    @DubboReference
-    private com.zixin.thirdpartyapi.api.SMSAPI thirdPartySMSAPI;
-
-    @DubboReference(check = false)
-    private AccountManagementAPI accountManagementAPI;
-
     private final MessageServiceImpl messageService;
     private final SMSRateLimiter smsRateLimiter;
+    private final SMSClient smsClient;
+    private final AccountClient accountClient;
     
     @Value("${sms.rate-limit.enabled:true}")
     private boolean rateLimitEnabled;
@@ -99,15 +97,11 @@ public class SMSServiceImpl implements SMSAPI {
             smsRequest.setPhone(receiverPhone);
             smsRequest.setCode(request.getContent()); // 短信内容作为code发送
             // smsRequest.setTemplateId(); // 如果需要指定模板ID
-            
-            SendSMSResponse smsResponse = thirdPartySMSAPI.sendSMS(smsRequest);
-            
+
             // 5. 检查短信发送结果
-            if (!ToBCodeEnum.SUCCESS.equals(smsResponse.getCode())) {
-                log.error("Send SMS failed, receiverId: {}, error: {}", 
-                        request.getReceiverId(), smsResponse.getMessage());
+            if (!smsClient.sendSMSByKafka(smsRequest)) {
                 response.setCode(ToBCodeEnum.FAIL);
-                response.setMessage("短信发送失败: " + smsResponse.getMessage());
+                response.setMessage("短信发送失败");
                 return response;
             }
             
@@ -200,20 +194,17 @@ public class SMSServiceImpl implements SMSAPI {
                     SendSMSRequest smsRequest = new SendSMSRequest();
                     smsRequest.setPhone(receiverPhone);
                     smsRequest.setCode(request.getContent());
-                    
-                    SendSMSResponse smsResponse = thirdPartySMSAPI.sendSMS(smsRequest);
-                    
-                    if (ToBCodeEnum.SUCCESS.equals(smsResponse.getCode())) {
-                        successCount++;
-                        
-                        // 记录发送
-                        if (rateLimitEnabled) {
-                            smsRateLimiter.recordSending(receiverPhone, senderId);
-                        }
-                    } else {
-                        log.error("Send SMS to receiver failed, receiverId: {}, error: {}", 
-                                receiverId, smsResponse.getMessage());
+
+                    if (!smsClient.sendSMSByKafka(smsRequest)) {
+                        log.error("Send SMS to receiver failed, receiverId: {}",
+                                receiverId);
                         failedReceiverIds.add(receiverId);
+                    }
+
+                    successCount++;
+                    // 记录发送
+                    if (rateLimitEnabled) {
+                        smsRateLimiter.recordSending(receiverPhone, senderId);
                     }
                     
                 } catch (Exception e) {
@@ -259,21 +250,8 @@ public class SMSServiceImpl implements SMSAPI {
      */
     private String getReceiverPhone(Long receiverId) {
         try {
-            // 调用账户管理服务获取用户信息
-            GetUserInfoRequest request = new GetUserInfoRequest();
-            request.setUserIds(Collections.singletonList(receiverId));
-            
-            GetUserInfoResponse response = accountManagementAPI.getUserInfo(request);
-            
-            // 检查响应结果
-            if (!ToBCodeEnum.SUCCESS.equals(response.getCode())) {
-                log.error("Failed to get user info from account service, receiverId: {}, error: {}", 
-                        receiverId, response.getMessage());
-                return null;
-            }
-            
             // 获取用户列表
-            List<GetUserInfoResponse.UserInfoDTO> users = response.getUsers();
+            List<GetUserInfoResponse.UserInfoDTO> users = accountClient.getUserInfo(Collections.singletonList(receiverId));
             if (users == null || users.isEmpty()) {
                 log.warn("User not found, receiverId: {}", receiverId);
                 return null;

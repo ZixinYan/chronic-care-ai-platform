@@ -9,5 +9,5 @@ import java.util.Objects;
 @Data
 public class UpdateUserInfoRequest implements Serializable {
     private static final long serialVersionUID = 1L;
-    private Map<String, Objects> updateData;
+    private Map<String, Object> updateData;
 }

@@ -14,7 +14,7 @@ import java.io.IOException;
 @Service
 @Slf4j
 public class OSSClient {
-    @DubboReference(check = false,timeout = 10000)
+    @DubboReference(check = false,timeout = 2000000)
     private OSSAPI ossAPI;
 
     public String uploadFile(MultipartFile file) throws IOException {

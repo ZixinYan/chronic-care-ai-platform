@@ -48,4 +48,11 @@ public interface UserIdentityAPI {
 
 
     GetMyPatientsResponse getMyPatients(GetMyPatientsRequest request);
+
+    /**
+     * 获取所有医生信息
+     *
+     * @return 所有医生列表
+     */
+    GetAllDoctorsResponse getAllDoctors();
 }

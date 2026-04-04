@@ -6,6 +6,7 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 
 import java.io.Serializable;
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 
@@ -31,6 +32,8 @@ public class GetUserInfoResponse extends BaseResponse implements Serializable {
        private Long createTime;
        private Long updateTime;
        private JSON ext;
+       private List<String> roles = new ArrayList<>();
+       private List<String> permissions = new ArrayList<>();
 
 
    }

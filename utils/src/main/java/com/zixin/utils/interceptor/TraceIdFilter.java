@@ -32,11 +32,9 @@ public class TraceIdFilter extends OncePerRequestFilter{
 
         String traceId = request.getHeader(TRACE_ID);
         if (traceId != null) {
-            logger.info("TraceIdFilter - Extracted Trace ID from header: {}", traceId);
             MDC.put(TRACE_ID, traceId);
         }
         try {
-            logger.info("TraceIdFilter - X-Trace-Id: {}", traceId);
             filterChain.doFilter(request, response);
         } finally {
             MDC.remove(TRACE_ID);

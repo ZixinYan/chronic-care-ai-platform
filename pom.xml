@@ -31,6 +31,7 @@
         <module>doctor-service</module>
         <module>health-report-center</module>
         <module>blood-glucose-service</module>
+        <module>ai-capability-service</module>
     </modules>
 
     <dependencyManagement>

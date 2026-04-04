@@ -27,6 +27,7 @@ public interface AccountManagementAPI {
      * @return
      */
     UpdateUserInfoResponse updateUserInfo(UpdateUserInfoRequest updateUserInfoRequest);
+
     UpdatePasswordResponse updatePassword(UpdatePasswordRequest updatePasswordRequest);
     /**
      * 删除用户
@@ -34,12 +35,22 @@ public interface AccountManagementAPI {
      * @return
      */
     DeleteUserResponse deleteUser(DeleteUserRequest deleteUserRequest);
-    
     /**
      * 更新用户角色
      * @param request 更新角色请求
      * @return 更新结果
      */
     UpdateUserRolesResponse updateUserRoles(UpdateUserRolesRequest request);
+    /**
+     * 分页获取用户列表（管理后台使用）
+     * @param request 查询请求
+     * @return 用户列表
+     */
+    GetUsersListResponse getUsersList(GetUsersListRequest request);
+    /**
+     * 获取系统统计数据（管理后台使用）
+     * @return 系统统计数据
+     */
+    SystemStatsResponse getSystemStats();
 }
 

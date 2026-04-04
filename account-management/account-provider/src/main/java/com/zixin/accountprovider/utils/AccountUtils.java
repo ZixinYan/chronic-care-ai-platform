@@ -14,7 +14,7 @@ public final class AccountUtils  extends ServiceImpl<UserMapper, User> {
     /**
      * 校验更新字符是否符合预期
      */
-    public static boolean validateUpdateData(Map<String, Objects> updateData) {
+    public static boolean validateUpdateData(Map<String, Object> updateData) {
         return updateData.keySet()
                 .stream()
                 .allMatch(Enum.UpdateUserField::contains);

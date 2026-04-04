@@ -20,7 +20,7 @@ import java.util.regex.Pattern;
  * 1. 管理消息模板
  * 2. 支持模板变量替换
  * 3. 基于模板快速生成消息
- * 
+ *    未来拓展使用，目前系统没有使用这个功能
  * @author zixin
  */
 @Service

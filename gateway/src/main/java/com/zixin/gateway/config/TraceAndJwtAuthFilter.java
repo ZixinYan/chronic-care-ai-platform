@@ -55,8 +55,11 @@ public class TraceAndJwtAuthFilter implements GlobalFilter, Ordered {
      * 白名单路径 - 这些路径不需要JWT认证
      */
     private static final Set<String> WHITE_LIST = new HashSet<>(Arrays.asList(
-            "/auth/**",
-            "/api/auth/**",
+            "/api/auth/login",
+            "/api/auth/register",
+            "/api/auth/refresh",
+            "/api/auth/validate",
+            "/api/auth/sms/code", 
             "/actuator/**",
             "/api/actuator/**",
             "/v3/api-docs/**",

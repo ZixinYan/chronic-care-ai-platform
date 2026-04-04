@@ -15,6 +15,7 @@ import com.zixin.accountapi.vo.DoctorVO;
 import com.zixin.accountprovider.config.RoleConfig;
 import com.zixin.accountprovider.mapper.*;
 import com.zixin.accountprovider.utils.AccountUtils;
+import com.zixin.utils.context.UserInfoManager;
 import com.zixin.utils.exception.BusinessException;
 import com.zixin.utils.exception.ToBCodeEnum;
 import lombok.extern.slf4j.Slf4j;
@@ -132,6 +133,8 @@ public class AccountServiceImpl extends ServiceImpl<UserMapper, User> implements
         // 6. Build response
         LoginResponse.LoginUserDTO userDTO = buildLoginUserDTO(user, roleCodes, permissions);
 
+        log.info("Login user data - userId: {}, phone: {}, email: {}", user.getUserId(), user.getPhone(), user.getEmail());
+
         loginResponse.setData(userDTO);
         loginResponse.setCode(ToBCodeEnum.SUCCESS);
         loginResponse.setMessage("Login successful");
@@ -234,8 +237,22 @@ public class AccountServiceImpl extends ServiceImpl<UserMapper, User> implements
             List<GetUserInfoResponse.UserInfoDTO> userInfoDTOList = userIds.stream()
                     .map(userMap::get)
                     .filter(Objects::nonNull)
-                    .map(user -> BeanUtil.copyProperties(user, GetUserInfoResponse.UserInfoDTO.class))
+                    .map(user -> {
+                        GetUserInfoResponse.UserInfoDTO dto = BeanUtil.copyProperties(user, GetUserInfoResponse.UserInfoDTO.class);
+                        dto.setAvatarUrl(user.getAvatar());
+                        List<Integer> roleCodes = getUserRoleCodes(user.getUserId());
+                        List<String> roleNames = convertRoleCodesToNames(roleCodes);
+                        dto.setRoles(roleNames);
+                        Set<String> permissions = getUserPermissions(roleCodes);
+                        dto.setPermissions(new ArrayList<>(permissions));
+                        log.info("User {} roles: {}, permissions: {}", user.getUserId(), roleNames, permissions);
+                        return dto;
+                    })
                     .collect(Collectors.toList());
+
+            log.info("userInfoDTOList size: {}, first user roles: {}", 
+                    userInfoDTOList.size(), 
+                    userInfoDTOList.isEmpty() ? "N/A" : userInfoDTOList.get(0).getRoles());
 
             response.setCode(ToBCodeEnum.SUCCESS);
             response.setUsers(userInfoDTOList);
@@ -256,20 +273,12 @@ public class AccountServiceImpl extends ServiceImpl<UserMapper, User> implements
         UpdateUserInfoResponse response = new UpdateUserInfoResponse();
 
         try {
-            Map<String, Objects> updateData = request.getUpdateData();
-            if (updateData == null || !updateData.containsKey("account_id")) {
-                log.warn("Update failed - missing account_id");
-                response.setCode(ToBCodeEnum.FAIL);
-                response.setMessage("account_id is required");
-                return response;
-            }
-
-            // Safely get account_id
+            Map<String, Object> updateData = request.getUpdateData();
             Long userId;
             try {
-                userId = Long.valueOf(updateData.get("account_id").toString());
+                userId = UserInfoManager.getUserId();
             } catch (NumberFormatException e) {
-                log.warn("Update failed - invalid account_id format: {}", updateData.get("account_id"));
+                log.warn("Update failed - invalid userid,{}", UserInfoManager.getUserId());
                 response.setCode(ToBCodeEnum.FAIL);
                 response.setMessage("Invalid account_id format");
                 return response;
@@ -292,12 +301,22 @@ public class AccountServiceImpl extends ServiceImpl<UserMapper, User> implements
                 return response;
             }
 
+            // check if update password
+            if(updateData.containsKey("password")){
+                if(!user.getPhone().equals(updateData.get("phone"))){
+                    log.error("Attempt to update password without same phone number: {}", userId);
+                    response.setCode(ToBCodeEnum.FAIL);
+                    response.setMessage("Please user same phone number to update password");
+                    return response;
+                }
+            }
+
             // Build update condition
             UpdateWrapper<User> updateWrapper = new UpdateWrapper<>();
             updateWrapper.eq("user_id", userId);
 
             updateData.forEach((key, value) -> {
-                if (value != null && !"account_id".equals(key)) {
+                if (value != null && !"user_id".equals(key)) {
                     updateWrapper.set(key, value);
 
                     // Handle special fields
@@ -521,6 +540,26 @@ public class AccountServiceImpl extends ServiceImpl<UserMapper, User> implements
     }
 
     /**
+     * Convert role codes to role names
+     */
+    private List<String> convertRoleCodesToNames(List<Integer> roleCodes) {
+        if (roleCodes == null || roleCodes.isEmpty()) {
+            return new ArrayList<>();
+        }
+        return roleCodes.stream()
+                .map(code -> {
+                    try {
+                        return RoleCode.fromCode(code).name();
+                    } catch (IllegalArgumentException e) {
+                        log.warn("Unknown role code: {}", code);
+                        return null;
+                    }
+                })
+                .filter(Objects::nonNull)
+                .collect(Collectors.toList());
+    }
+
+    /**
      * Get user permissions from role codes
      */
     private Set<String> getUserPermissions(List<Integer> roleCodes) {
@@ -555,17 +594,19 @@ public class AccountServiceImpl extends ServiceImpl<UserMapper, User> implements
      * Build login user DTO
      */
     private LoginResponse.LoginUserDTO buildLoginUserDTO(User user, List<Integer> roleCodes, Set<String> permissions) {
+        List<String> roleNames = convertRoleCodesToNames(roleCodes);
         return new LoginResponse.LoginUserDTO(
                 user.getUserId(),
                 user.getUsername(),
                 user.getNickname(),
+                user.getPhone(),
                 user.getEmail(),
                 user.getGender(),
-                user.getAvatarUrl(),
+                user.getAvatar(),
                 user.getAddress(),
                 user.getBirthday(),
                 user.getIdCard(),
-                roleCodes,
+                roleNames,
                 permissions,
                 user.getExt()
         );
@@ -756,6 +797,134 @@ public class AccountServiceImpl extends ServiceImpl<UserMapper, User> implements
         }
         patient.setAttendingDoctorName(doctor.getUsername());
         return false;
+    }
+
+    @Override
+    public GetUsersListResponse getUsersList(GetUsersListRequest request) {
+        GetUsersListResponse response = new GetUsersListResponse();
+        
+        try {
+            Integer pageNum = request.getPageNum() != null ? request.getPageNum() : 1;
+            Integer pageSize = request.getPageSize() != null ? request.getPageSize() : 10;
+            String keyword = request.getKeyword();
+            Integer roleCode = request.getRoleCode();
+            
+            LambdaQueryWrapper<User> queryWrapper = new LambdaQueryWrapper<>();
+            
+            if (StrUtil.isNotBlank(keyword)) {
+                queryWrapper.and(w -> w
+                    .like(User::getUsername, keyword)
+                    .or()
+                    .like(User::getNickname, keyword)
+                    .or()
+                    .like(User::getPhone, keyword)
+                    .or()
+                    .like(User::getEmail, keyword)
+                );
+            }
+            
+            queryWrapper.orderByDesc(User::getCreateTime);
+            
+            long total = this.baseMapper.selectCount(queryWrapper);
+            
+            int offset = (pageNum - 1) * pageSize;
+            queryWrapper.last("LIMIT " + offset + ", " + pageSize);
+            
+            List<User> users = this.baseMapper.selectList(queryWrapper);
+            
+            List<GetUsersListResponse.UserItemDTO> userItems = users.stream()
+                .map(user -> {
+                    GetUsersListResponse.UserItemDTO dto = new GetUsersListResponse.UserItemDTO();
+                    dto.setUserId(user.getUserId());
+                    dto.setUsername(user.getUsername());
+                    dto.setNickname(user.getNickname());
+                    dto.setGender(user.getGender());
+                    dto.setPhone(user.getPhone());
+                    dto.setEmail(user.getEmail());
+                    dto.setAvatarUrl(user.getAvatar());
+                    dto.setAddress(user.getAddress());
+                    dto.setBirthday(user.getBirthday());
+                    dto.setCreateTime(user.getCreateTime());
+                    dto.setUpdateTime(user.getUpdateTime());
+                    
+                    List<Integer> roleCodes = getUserRoleCodes(user.getUserId());
+                    List<String> roleNames = convertRoleCodesToNames(roleCodes);
+                    dto.setRoles(roleNames);
+                    dto.setRoleCodes(roleCodes);
+                    
+                    if (roleCode != null && !roleCodes.contains(roleCode)) {
+                        return null;
+                    }
+                    
+                    return dto;
+                })
+                .filter(Objects::nonNull)
+                .collect(Collectors.toList());
+            
+            if (roleCode != null) {
+                total = userItems.size();
+            }
+            
+            response.setUsers(userItems);
+            response.setTotal(total);
+            response.setPageNum(pageNum);
+            response.setPageSize(pageSize);
+            response.setCode(ToBCodeEnum.SUCCESS);
+            response.setMessage("查询成功");
+            
+            log.info("Get users list success, total: {}, pageNum: {}, pageSize: {}", total, pageNum, pageSize);
+            
+        } catch (Exception e) {
+            log.error("Failed to get users list", e);
+            response.setCode(ToBCodeEnum.FAIL);
+            response.setMessage("查询用户列表失败: " + e.getMessage());
+        }
+        
+        return response;
+    }
+
+    @Override
+    public SystemStatsResponse getSystemStats() {
+        SystemStatsResponse response = new SystemStatsResponse();
+        
+        try {
+            long totalUsers = this.baseMapper.selectCount(null);
+            
+            List<UserRole> allUserRoles = userRoleMapper.selectList(null);
+            Map<Integer, Long> roleCountMap = allUserRoles.stream()
+                .collect(Collectors.groupingBy(UserRole::getRoleCode, Collectors.counting()));
+            
+            response.setTotalUsers(totalUsers);
+            response.setTotalDoctors(roleCountMap.getOrDefault(RoleCode.DOCTOR.getCode(), 0L));
+            response.setTotalPatients(roleCountMap.getOrDefault(RoleCode.PATIENT.getCode(), 0L));
+            response.setTotalAdmins(roleCountMap.getOrDefault(RoleCode.ADMIN.getCode(), 0L));
+            
+            long todayStart = java.time.LocalDate.now()
+                .atStartOfDay(java.time.ZoneId.systemDefault())
+                .toInstant()
+                .toEpochMilli();
+            
+            long todayNewUsers = this.baseMapper.selectCount(
+                new LambdaQueryWrapper<User>()
+                    .ge(User::getCreateTime, todayStart)
+            );
+            response.setTodayNewUsers(todayNewUsers);
+            
+            response.setActiveUsersToday(todayNewUsers);
+            
+            response.setCode(ToBCodeEnum.SUCCESS);
+            response.setMessage("获取统计数据成功");
+            
+            log.info("Get system stats success - totalUsers: {}, doctors: {}, patients: {}, admins: {}", 
+                totalUsers, response.getTotalDoctors(), response.getTotalPatients(), response.getTotalAdmins());
+            
+        } catch (Exception e) {
+            log.error("Failed to get system stats", e);
+            response.setCode(ToBCodeEnum.FAIL);
+            response.setMessage("获取统计数据失败: " + e.getMessage());
+        }
+        
+        return response;
     }
 
 }

@@ -114,11 +114,4 @@ public class Message {
     @TableLogic
     @TableField("deleted")
     private Integer deleted;
-    
-    /**
-     * 乐观锁版本号
-     */
-    @Version
-    @TableField("version")
-    private Integer version;
 }

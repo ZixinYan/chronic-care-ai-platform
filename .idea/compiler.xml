@@ -16,13 +16,16 @@
         <module name="account-provider" />
         <module name="message-system-consumer" />
         <module name="auth-provider" />
+        <module name="ai-capability-api" />
         <module name="account-api" />
         <module name="third-party-api" />
         <module name="message-system-provider" />
         <module name="utils" />
         <module name="auth-api" />
         <module name="health-center-provider" />
+        <module name="ai-capability-provider" />
         <module name="health-center-consumer" />
+        <module name="ai-capability-consumer" />
         <module name="blood-glucose-consumer" />
         <module name="doctor-service-consumer" />
         <module name="gateway" />
@@ -33,6 +36,9 @@
   </component>
   <component name="JavacSettings">
     <option name="ADDITIONAL_OPTIONS_OVERRIDE">
+      <module name="ai-capability-api" options="" />
+      <module name="ai-capability-consumer" options="" />
+      <module name="ai-capability-service" options="" />
       <module name="blood-glucose-api" options="" />
       <module name="blood-glucose-consumer" options="" />
       <module name="blood-glucose-provider" options="" />

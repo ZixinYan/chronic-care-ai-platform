@@ -5,7 +5,7 @@ import org.apache.ibatis.reflection.MetaObject;
 import org.springframework.stereotype.Component;
 
 /**
- * 3. 元对象处理器（核心实现）
+ * 元对象处理器（核心实现）
  */
 @Component
 public class CustomMetaObjectHandler implements MetaObjectHandler {

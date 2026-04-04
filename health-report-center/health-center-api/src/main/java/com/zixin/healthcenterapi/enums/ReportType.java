@@ -25,8 +25,13 @@ public enum ReportType {
     /**
      * PDF文档
      */
-    PDF(3, "PDF文档");
-    
+    PDF(3, "PDF文档"),
+
+    /**
+     * AI生成报告
+     */
+    AI_GENERATED(4, "AI生成报告");
+
     private final Integer code;
     private final String description;
     
