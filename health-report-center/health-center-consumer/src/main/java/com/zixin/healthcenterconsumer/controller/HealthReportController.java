@@ -2,6 +2,8 @@ package com.zixin.healthcenterconsumer.controller;
 
 import com.zixin.healthcenterapi.api.HealthReportAPI;
 import com.zixin.healthcenterapi.dto.*;
+import com.zixin.healthcenterapi.vo.AISummaryVO;
+import com.zixin.healthcenterapi.vo.HealthReportVO;
 import com.zixin.healthcenterconsumer.client.OSSClient;
 import com.zixin.utils.context.UserInfoManager;
 import com.zixin.utils.exception.BusinessException;
@@ -77,7 +79,7 @@ public class HealthReportController {
     @RequireRole("PATIENT")
     public Result<UploadReportResponse> uploadReport(
             @ModelAttribute  UploadReportRequest request,
-            @RequestParam("file") MultipartFile file
+            @RequestParam(value = "file", required = false) MultipartFile file
     ) throws IOException {
         Long currentUserId = UserInfoManager.getUserIdOrThrow();
         String traceId = UserInfoManager.getTraceId();
@@ -90,6 +92,7 @@ public class HealthReportController {
         // 1. 文件上传
         String fileUrl = null;
         if (file != null && !file.isEmpty()) {
+            validateFile(file, request.getReportType());
             fileUrl = ossClient.uploadFile(file);
         }
 
@@ -163,11 +166,11 @@ public class HealthReportController {
     
     /**
      * 获取报告详情
-     * 
+     *
      * 权限要求:
      * - 需要PATIENT角色
      * - 只能查看自己的报告详情
-     * 
+     *
      * @param reportId 报告ID
      * @return 报告详情
      */
@@ -177,18 +180,84 @@ public class HealthReportController {
         // 从ThreadLocal获取当前用户信息
         Long currentUserId = UserInfoManager.getUserIdOrThrow();
         String traceId = UserInfoManager.getTraceId();
-        
-        log.info("getReportDetail - userId: {}, reportId: {}, traceId: {}", 
+
+        log.info("getReportDetail - userId: {}, reportId: {}, traceId: {}",
                 currentUserId, reportId, traceId);
-        
+
         // 构建请求
         GetReportDetailRequest detailRequest = new GetReportDetailRequest();
         detailRequest.setReportId(reportId);
-        
+
         // 调用Dubbo服务
         GetReportDetailResponse response = healthReportAPI.getReportDetail(detailRequest);
-        
+
         if ("SUCCESS".equals(response.getCode().name())) {
+            return Result.success(response);
+        } else {
+            throw new BusinessException(response.getMessage());
+        }
+    }
+
+    /**
+     * 获取最近N次健康报告
+     *
+     * 权限要求:
+     * - 需要PATIENT角色
+     * - 患者只能查看自己的报告
+     *
+     * @param limit 获取数量（默认5）
+     * @return 最近报告列表
+     */
+    @GetMapping("/recent")
+    @RequireRole("PATIENT")
+    public Result<GetRecentReportsResponse> getRecentReports(
+            @RequestParam(defaultValue = "5", value = "limit") Integer limit) {
+        Long patientId = UserInfoManager.getUserIdOrThrow();
+        String traceId = UserInfoManager.getTraceId();
+
+        log.info("getRecentReports - patientId: {}, limit: {}, traceId: {}",
+                patientId, limit, traceId);
+
+        GetRecentReportsRequest request = new GetRecentReportsRequest();
+        request.setPatientId(patientId);
+        request.setLimit(limit);
+
+        GetRecentReportsResponse response = healthReportAPI.getRecentReports(request);
+
+        if (ToBCodeEnum.SUCCESS.equals(response.getCode())) {
+            return Result.success(response);
+        } else {
+            throw new BusinessException(response.getMessage());
+        }
+    }
+
+    /**
+     * 获取最近N天AI总结信息
+     *
+     * 权限要求:
+     * - 需要PATIENT角色
+     * - 患者只能查看自己的总结
+     *
+     * @param days 查询天数（默认10）
+     * @return AI总结列表
+     */
+    @GetMapping("/ai-summary")
+    @RequireRole("PATIENT")
+    public Result<GetRecentAISummaryResponse> getRecentAISummary(
+            @RequestParam(defaultValue = "10", value = "days") Integer days) {
+        Long patientId = UserInfoManager.getUserIdOrThrow();
+        String traceId = UserInfoManager.getTraceId();
+
+        log.info("getRecentAISummary - patientId: {}, days: {}, traceId: {}",
+                patientId, days, traceId);
+
+        GetRecentAISummaryRequest request = new GetRecentAISummaryRequest();
+        request.setPatientId(patientId);
+        request.setDays(days);
+
+        GetRecentAISummaryResponse response = healthReportAPI.getRecentAISummary(request);
+
+        if (ToBCodeEnum.SUCCESS.equals(response.getCode())) {
             return Result.success(response);
         } else {
             throw new BusinessException(response.getMessage());

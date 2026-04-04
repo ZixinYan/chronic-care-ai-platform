@@ -91,9 +91,54 @@ Consumer Controller 基本使用：`com.zixin.utils.utils.Result<T>`
 
 ---
 
-## 2. 核心业务流程（端到端）
+## 2. 新增功能：血糖预测与AI报告生成（v2.0）
 
-本节以“用户登录 → 访问业务接口”的真实调用链说明系统如何工作。
+### 2.1 功能概述
+
+本版本新增血糖数据预测与AI健康报告生成功能，主要包含：
+
+1. **血糖预测**：基于多维度数据（CGM、指尖血、心率等）预测未来血糖变化
+2. **AI报告生成**：根据预测结果自动生成健康报告
+3. **智能预警**：血糖超阈值时自动发送短信通知家属
+
+### 2.2 血糖阈值规则
+
+| 用餐类型 | 阈值 (mmol/L) | 说明 |
+|---------|--------------|------|
+| 空腹 | > 8.3 | 空腹血糖 |
+| 餐后1h | > 12.7 | 餐后1小时 |
+| 餐后2h | > 11.1 | 餐后2小时 |
+| 餐后3h | > 10.0 | 餐后3小时 |
+
+> 单位转换：1 mg/dL = 0.0555 mmol/L
+
+### 2.3 业务流程图
+
+```
+患者上传血糖数据
+        ↓
+调用 /glucose/predict 预测接口
+        ↓
+【TODO: 调用外部Python预测服务】
+        ↓
+获取未来血糖预测值（离散数据）
+        ↓
+调用 /glucose-report/predict-and-generate
+        ↓
+调用 ai-capability 生成AI报告
+        ↓
+自动保存到患者报告库
+        ↓
+检测CBG是否超阈值？
+        ↓ 是
+查询患者紧急联系人电话
+        ↓
+调用 third-party-service 发送预警短信
+```
+
+## 3. 核心业务流程（端到端）
+
+本节以"用户登录 → 访问业务接口"的真实调用链说明系统如何工作。
 
 ### 2.1 登录 / 注册 / Token 生命周期（SSO）
 
@@ -237,7 +282,7 @@ G --> C : 200 + tokens
 
 **Controller**：`doctor-service/doctor-service-consumer/.../DoctorWorkbenchController.java`
 
-> 该模块 README 已给出较完整的 API 示例与状态流转规则，本节补充“真实鉴权/上下文”与关键流程。
+> 该模块 README 已给出较完整的 API 示例与状态流转规则，本节补充"真实鉴权/上下文"与关键流程。
 
 #### 3.2.1 添加日程
 
@@ -394,7 +439,23 @@ G --> C : 200 + tokens
 - **GET** `/health/report/detail?reportId=...`
 - **鉴权**：`@RequireRole("PATIENT")`
 
-#### 3.4.4 端到端流程（患者上传与查看报告）
+#### 3.4.4 获取最近N次报告（新增 v2.0）
+
+- **GET** `/health/report/recent`
+- **鉴权**：`@RequireRole("PATIENT")`
+- **Query 参数**：
+  - `limit`：获取数量（默认 5）
+- **返回**：最近N条报告列表，按创建时间倒序
+
+#### 3.4.5 获取最近N天AI总结（新增 v2.0）
+
+- **GET** `/health/report/ai-summary`
+- **鉴权**：`@RequireRole("PATIENT")`
+- **Query 参数**：
+  - `days`：查询天数（默认 10）
+- **返回**：AI生成的健康总结列表
+
+#### 3.4.6 端到端流程（患者上传与查看报告）
 
 1. 患者登录获取 token
 2. 上传报告 `/health/report/upload`（网关校验 token 后注入用户信息）
@@ -404,7 +465,85 @@ G --> C : 200 + tokens
 
 ---
 
-### 3.5 AI 日程能力（ai-capability-service / ai-capability-consumer）
+### 3.5 血糖预测服务（blood-glucose-service / blood-glucose-consumer）【新增 v2.0】
+
+**Controller**：`blood-glucose-service/blood-glucose-consumer/.../GlucosePredictionController.java`
+
+#### 3.5.1 血糖预测（完整版）
+
+- **POST** `/glucose/predict`
+- **鉴权**：`@RequireRole("PATIENT")`
+- **Content-Type**：`application/x-www-form-urlencoded`
+- **参数**：
+  - `cbg`（必填）：CGM数据列表，逗号分隔的数值
+  - `finger`（可选）：指尖血数据列表
+  - `basal`（可选）：基础率列表
+  - `hr`（可选）：心率列表
+  - `gsr`（可选）：皮肤电反应列表
+  - `carbInput`（可选）：碳水化合物摄入列表
+  - `bolus`（可选）：大剂量胰岛素列表
+  - `mealStatus`（可选）：用餐状态，1-空腹, 2-餐前, 3-餐后（默认1）
+  - `predictHours`（可选）：预测时长小时数（默认3）
+
+**数据维度说明**：
+| 字段 | 全称 | 单位 | 说明 |
+|-----|------|-----|------|
+| cbg | Continuous Blood Glucose | mg/dL | 连续血糖监测值 |
+| finger | Fingerstick Blood Glucose | mg/dL | 指尖血血糖值 |
+| basal | Basal Rate | U/h | 基础率 |
+| hr | Heart Rate | bpm | 心率 |
+| gsr | Galvanic Skin Response | - | 皮肤电反应 |
+| carbInput | Carbohydrate Input | g | 碳水化合物摄入 |
+| bolus | Bolus | U | 大剂量胰岛素 |
+
+#### 3.5.2 血糖预测（简化版）
+
+- **POST** `/glucose/predict/simple`
+- **鉴权**：`@RequireRole("PATIENT")`
+- **Content-Type**：`application/json`
+- **Body**：CGM数据数组 `[120.5, 125.3, 130.1, ...]`
+- **Query 参数**：
+  - `mealStatus`（可选）：用餐状态（默认1）
+  - `predictHours`（可选）：预测时长（默认3）
+
+---
+
+### 3.6 血糖报告流程（health-report-center / glucose-report）【新增 v2.0】
+
+**Controller**：`health-report-center/health-center-consumer/.../GlucoseReportController.java`
+
+#### 3.6.1 完整预测与报告生成流程
+
+- **POST** `/glucose-report/predict-and-generate`
+- **鉴权**：`@RequireRole("PATIENT")`
+- **Content-Type**：`application/x-www-form-urlencoded`
+- **参数**：同3.5.1完整预测接口
+- **返回**：`GenerateAIReportResponse`
+
+**内部流程**：
+1. 调用 `GlucosePredictionAPI.predictGlucose` 进行血糖预测
+2. 【TODO: 调用外部Python预测服务】
+3. **综合分析**：结合当前血糖情况 + 预测结果
+4. 生成综合健康报告（包含统计分析、阈值检测、趋势分析、健康建议）
+5. 调用 `HealthReportAPI.uploadReport` 上传报告（复用现有审核流程）
+6. 检测血糖是否超阈值，如超限则发送预警短信给家属
+
+#### 3.6.2 检查血糖阈值并发送预警
+
+- **POST** `/glucose-report/check-alert`
+- **鉴权**：`@RequireRole("PATIENT")`
+- **参数**：
+  - `cbgValue`（必填）：CBG值（mg/dL）
+  - `mealType`（可选）：用餐类型，1-空腹, 2-餐后1h, 3-餐后2h, 4-餐后3h（默认1）
+- **返回**：`CheckGlucoseAlertResponse`
+  - `exceeded`：是否超过阈值
+  - `cbgMmol`：CBG值（mmol/L）
+  - `threshold`：对应阈值
+  - `smsSent`：是否发送短信成功
+
+---
+
+### 3.7 AI 日程能力（ai-capability-service / ai-capability-consumer）
 
 **Controller**：`ai-capability-service/ai-capability-consumer/.../AIScheduleController.java`
 
@@ -419,7 +558,7 @@ G --> C : 200 + tokens
 
 ## 4. Dubbo RPC 接口（跨服务调用点）
 
-> 本节仅列“业务关键链路”，完整 RPC 接口请查各模块 `*-api` 工程。
+> 本节仅列"业务关键链路"，完整 RPC 接口请查各模块 `*-api` 工程。
 
 ### 4.1 认证相关
 
@@ -452,6 +591,25 @@ G --> C : 200 + tokens
   - `queryInbox/querySentBox/getMessageDetail/...`
   - `pushMessage/batchPushMessage`（供其他服务作为通知能力调用）
 
+### 4.4 健康报告中心（新增 v2.0）
+
+- `HealthReportAPI`
+  - `uploadReport(UploadReportRequest)`：上传健康报告
+  - `queryReportList(QueryReportListRequest)`：查询报告列表
+  - `getReportDetail(GetReportDetailRequest)`：获取报告详情
+  - `processReport(ProcessReportRequest)`：处理报告
+  - `getRecentReports(GetRecentReportsRequest)`：获取最近N次报告
+  - `getRecentAISummary(GetRecentAISummaryRequest)`：获取最近N天AI总结
+  - `generateAIReport(GenerateAIReportRequest)`：生成AI健康报告
+  - `checkGlucoseAlert(CheckGlucoseAlertRequest)`：检查血糖阈值并发送预警
+
+### 4.5 血糖预测服务（新增 v2.0）
+
+- `GlucosePredictionAPI`
+  - `predictGlucose(PredictGlucoseRequest)`：预测未来血糖变化
+  - **数据来源**：CGM、指尖血、心率、皮肤电反应、碳水化合物、胰岛素等
+  - **处理逻辑**：【TODO: 调用外部Python预测服务】
+
 ### 4.4 健康报告
 
 - `HealthReportAPI`
@@ -478,7 +636,7 @@ G --> C : 200 + tokens
 
 ## 6. 已识别的实现偏差与风险点（基于代码现状）
 
-> 这部分是为了让“接口文档更可落地”，直接提示调用方/开发者当前实现与注释/README 的差异。
+> 这部分是为了让"接口文档更可落地"，直接提示调用方/开发者当前实现与注释/README 的差异。
 
 1. **health-report 上传接口入参强制 `file`**：
    - 注释声明 reportType=2（文字）不需要 file，但方法签名 `@RequestParam("file") MultipartFile file` 非可选。
