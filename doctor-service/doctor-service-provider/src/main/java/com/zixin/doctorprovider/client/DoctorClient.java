@@ -42,4 +42,12 @@ public class DoctorClient {
         }
         return response.getPatients();
     }
+
+    public List<DoctorVO> getAllDoctors() {
+        GetAllDoctorsResponse response = userIdentityAPI.getAllDoctors();
+        if (!response.getCode().equals(ToBCodeEnum.SUCCESS)) {
+            throw new RuntimeException("Failed to get all doctors: " + response.getMessage());
+        }
+        return response.getDoctors();
+    }
 }

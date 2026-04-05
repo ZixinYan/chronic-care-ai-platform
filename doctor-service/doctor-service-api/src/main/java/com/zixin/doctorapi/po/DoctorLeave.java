@@ -68,6 +68,26 @@ public class DoctorLeave {
     private String reason;
 
     /**
+     * 审批人ID
+     */
+    private Long approverId;
+
+    /**
+     * 审批人姓名
+     */
+    private String approverName;
+
+    /**
+     * 审批意见
+     */
+    private String approvalComment;
+
+    /**
+     * 审批时间
+     */
+    private Long approvalTime;
+
+    /**
      * 创建时间
      */
     private Long createTime;

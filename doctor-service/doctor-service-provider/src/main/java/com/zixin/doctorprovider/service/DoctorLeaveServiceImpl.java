@@ -219,8 +219,13 @@ public class DoctorLeaveServiceImpl implements DoctorLeaveAPI {
             if (request.getDoctorId() != null) {
                 wrapper.eq(DoctorLeave::getDoctorId, request.getDoctorId());
             }
-            if (request.getStatus() != null) {
-                wrapper.eq(DoctorLeave::getStatus, request.getStatus());
+            if (request.getStatus() != null && !request.getStatus().isEmpty()) {
+                if (request.getStatus().contains(",")) {
+                    String[] statuses = request.getStatus().split(",");
+                    wrapper.in(DoctorLeave::getStatus, (Object[]) statuses);
+                } else {
+                    wrapper.eq(DoctorLeave::getStatus, request.getStatus());
+                }
             }
             if (request.getStartDay() != null) {
                 wrapper.ge(DoctorLeave::getStartDay, request.getStartDay());
@@ -251,6 +256,174 @@ public class DoctorLeaveServiceImpl implements DoctorLeaveAPI {
             log.error("Query leaves failed, request={}", request, e);
             response.setCode(ToBCodeEnum.FAIL);
             response.setMessage("查询请假单异常: " + e.getMessage());
+        }
+
+        return response;
+    }
+
+    @Override
+    public CheckDoctorLeaveResponse checkDoctorLeave(CheckDoctorLeaveRequest request) {
+        CheckDoctorLeaveResponse response = new CheckDoctorLeaveResponse();
+
+        try {
+            if (request.getDoctorId() == null) {
+                response.setCode(ToBCodeEnum.FAIL);
+                response.setMessage("医生ID不能为空");
+                response.setOnLeave(false);
+                return response;
+            }
+
+            if (request.getCheckDay() == null || request.getCheckDay().isEmpty()) {
+                response.setCode(ToBCodeEnum.FAIL);
+                response.setMessage("检查日期不能为空");
+                response.setOnLeave(false);
+                return response;
+            }
+
+            LambdaQueryWrapper<DoctorLeave> wrapper = new LambdaQueryWrapper<>();
+            wrapper.eq(DoctorLeave::getDoctorId, request.getDoctorId())
+                    .in(DoctorLeave::getStatus, LeaveStatus.PENDING.getCode(), LeaveStatus.APPROVED.getCode())
+                    .le(DoctorLeave::getStartDay, request.getCheckDay())
+                    .ge(DoctorLeave::getEndDay, request.getCheckDay());
+
+            DoctorLeave leave = leaveMapper.selectOne(wrapper);
+
+            response.setCode(ToBCodeEnum.SUCCESS);
+            response.setMessage("查询成功");
+
+            if (leave != null) {
+                response.setOnLeave(true);
+                response.setLeaveInfo(convertToVO(leave));
+                log.info("Doctor is on leave (pending or approved), doctorId: {}, checkDay: {}, leaveId: {}, status: {}",
+                        request.getDoctorId(), request.getCheckDay(), leave.getId(), leave.getStatus());
+            } else {
+                response.setOnLeave(false);
+                log.info("Doctor is not on leave, doctorId: {}, checkDay: {}",
+                        request.getDoctorId(), request.getCheckDay());
+            }
+        } catch (Exception e) {
+            log.error("Check doctor leave failed, doctorId: {}, checkDay: {}",
+                    request.getDoctorId(), request.getCheckDay(), e);
+            response.setCode(ToBCodeEnum.FAIL);
+            response.setMessage("检查医生休假状态异常: " + e.getMessage());
+            response.setOnLeave(false);
+        }
+
+        return response;
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public ApproveLeaveResponse approveLeave(ApproveLeaveRequest request) {
+        ApproveLeaveResponse response = new ApproveLeaveResponse();
+
+        try {
+            if (request.getLeaveId() == null) {
+                response.setCode(ToBCodeEnum.FAIL);
+                response.setMessage("请假单ID不能为空");
+                response.setSuccess(false);
+                return response;
+            }
+
+            if (request.getStatus() == null || request.getStatus().isEmpty()) {
+                response.setCode(ToBCodeEnum.FAIL);
+                response.setMessage("审批状态不能为空");
+                response.setSuccess(false);
+                return response;
+            }
+
+            if (!LeaveStatus.APPROVED.getCode().equals(request.getStatus()) 
+                    && !LeaveStatus.REJECTED.getCode().equals(request.getStatus())) {
+                response.setCode(ToBCodeEnum.FAIL);
+                response.setMessage("审批状态只能是APPROVED或REJECTED");
+                response.setSuccess(false);
+                return response;
+            }
+
+            DoctorLeave dbLeave = leaveMapper.selectById(request.getLeaveId());
+            if (dbLeave == null) {
+                response.setCode(ToBCodeEnum.FAIL);
+                response.setMessage("请假单不存在");
+                response.setSuccess(false);
+                return response;
+            }
+
+            if (!LeaveStatus.PENDING.getCode().equals(dbLeave.getStatus())) {
+                response.setCode(ToBCodeEnum.FAIL);
+                response.setMessage("该请假单已审批，无法重复审批");
+                response.setSuccess(false);
+                return response;
+            }
+
+            LambdaUpdateWrapper<DoctorLeave> wrapper = new LambdaUpdateWrapper<>();
+            wrapper.eq(DoctorLeave::getId, request.getLeaveId())
+                    .eq(DoctorLeave::getVersion, dbLeave.getVersion())
+                    .set(DoctorLeave::getStatus, request.getStatus())
+                    .set(DoctorLeave::getApproverId, request.getApproverId())
+                    .set(DoctorLeave::getApprovalComment, request.getApprovalComment())
+                    .set(DoctorLeave::getApprovalTime, System.currentTimeMillis())
+                    .set(DoctorLeave::getUpdateTime, System.currentTimeMillis());
+
+            int rows = leaveMapper.update(null, wrapper);
+            if (rows > 0) {
+                response.setCode(ToBCodeEnum.SUCCESS);
+                response.setMessage("审批成功");
+                response.setSuccess(true);
+                log.info("Leave approved successfully, leaveId: {}, status: {}, approverId: {}",
+                        request.getLeaveId(), request.getStatus(), request.getApproverId());
+            } else {
+                response.setCode(ToBCodeEnum.FAIL);
+                response.setMessage("审批失败，请刷新后重试");
+                response.setSuccess(false);
+            }
+        } catch (Exception e) {
+            log.error("Approve leave failed, leaveId: {}", request.getLeaveId(), e);
+            response.setCode(ToBCodeEnum.FAIL);
+            response.setMessage("审批异常: " + e.getMessage());
+            response.setSuccess(false);
+        }
+
+        return response;
+    }
+
+    @Override
+    public QueryLeaveResponse queryPendingLeaves(QueryLeaveRequest request) {
+        QueryLeaveResponse response = new QueryLeaveResponse();
+
+        try {
+            Page<DoctorLeave> page = new Page<>(request.getPageNum(), request.getPageSize());
+
+            LambdaQueryWrapper<DoctorLeave> wrapper = new LambdaQueryWrapper<>();
+            wrapper.eq(DoctorLeave::getStatus, LeaveStatus.PENDING.getCode());
+
+            if (request.getStartDay() != null) {
+                wrapper.ge(DoctorLeave::getStartDay, request.getStartDay());
+            }
+            if (request.getEndDay() != null) {
+                wrapper.le(DoctorLeave::getEndDay, request.getEndDay());
+            }
+
+            wrapper.orderByAsc(DoctorLeave::getCreateTime);
+
+            Page<DoctorLeave> leavePage = leaveMapper.selectPage(page, wrapper);
+
+            PageUtils pageUtils = new PageUtils(leavePage);
+            if (pageUtils.getList() != null && !pageUtils.getList().isEmpty()) {
+                @SuppressWarnings("unchecked")
+                List<DoctorLeave> list = (List<DoctorLeave>) pageUtils.getList();
+                List<DoctorLeaveVO> vos = list.stream()
+                        .map(this::convertToVO)
+                        .collect(Collectors.toList());
+                pageUtils.setList(vos);
+            }
+
+            response.setCode(ToBCodeEnum.SUCCESS);
+            response.setMessage("查询待审批请假单成功");
+            response.setLeaves(pageUtils);
+        } catch (Exception e) {
+            log.error("Query pending leaves failed, request={}", request, e);
+            response.setCode(ToBCodeEnum.FAIL);
+            response.setMessage("查询待审批请假单异常: " + e.getMessage());
         }
 
         return response;

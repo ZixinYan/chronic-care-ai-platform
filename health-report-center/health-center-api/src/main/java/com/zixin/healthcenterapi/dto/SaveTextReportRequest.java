@@ -22,6 +22,11 @@ public class SaveTextReportRequest implements Serializable {
     private Long uploaderId;
 
     /**
+     * 上传者姓名
+     */
+    private String uploaderName;
+
+    /**
      * 报告分类
      */
     private String category;
@@ -35,6 +40,11 @@ public class SaveTextReportRequest implements Serializable {
      * 文字内容
      */
     private String textContent;
+
+    /**
+     * 报告描述/备注
+     */
+    private String description;
 
     /**
      * 报告日期 (yyyy-MM-dd)

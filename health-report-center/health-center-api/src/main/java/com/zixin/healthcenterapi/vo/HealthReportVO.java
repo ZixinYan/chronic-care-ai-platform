@@ -35,6 +35,11 @@ public class HealthReportVO implements Serializable {
     private Long attendingDoctorId;
     
     /**
+     * 关联的日程ID
+     */
+    private Long scheduleId;
+    
+    /**
      * 主治医生姓名
      */
     private String doctorName;
@@ -53,6 +58,11 @@ public class HealthReportVO implements Serializable {
      * 报告分类
      */
     private String category;
+    
+    /**
+     * 报告分类描述
+     */
+    private String categoryDesc;
     
     /**
      * 报告标题

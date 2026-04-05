@@ -162,7 +162,6 @@
         </foreach>
     </insert>
 
-    <!-- 批量插入（带分页，避免单次插入数据量过大）-->
     <insert id="batchInsertWithBatchSize" parameterType="map">
         INSERT INTO doctor_schedule (
         id,
@@ -197,5 +196,26 @@
             )
         </foreach>
     </insert>
+
+    <select id="findConflictingSchedules" resultType="com.zixin.doctorapi.po.DoctorSchedule">
+        SELECT * FROM doctor_schedule
+        WHERE doctor_id = #{doctorId}
+          AND schedule_day = #{scheduleDay}
+          AND status != 'CANCELLED'
+          AND start_time &lt; #{endTime}
+          AND end_time &gt; #{startTime}
+          <if test="excludeScheduleId != null">
+              AND id != #{excludeScheduleId}
+          </if>
+        ORDER BY start_time ASC
+    </select>
+
+    <select id="findDoctorSchedulesByDay" resultType="com.zixin.doctorapi.po.DoctorSchedule">
+        SELECT * FROM doctor_schedule
+        WHERE doctor_id = #{doctorId}
+          AND schedule_day = #{scheduleDay}
+          AND status != 'CANCELLED'
+        ORDER BY start_time ASC
+    </select>
 
 </mapper>

@@ -155,4 +155,54 @@ public interface HealthReportAPI {
      * @return 保存结果（包含 reportId）
      */
     SaveTextReportResponse saveTextReport(SaveTextReportRequest request);
+
+    /**
+     * 获取AI推荐的医生列表
+     *
+     * 功能说明:
+     * 1. 根据报告内容，AI智能推荐适合审核的医生
+     * 2. 返回医生列表及推荐理由
+     * 3. 仅支持待审核状态的报告
+     *
+     * 权限控制:
+     * - 只有报告所属患者可以获取推荐医生
+     *
+     * @param request 请求参数（包含reportId）
+     * @return 推荐医生列表
+     */
+    GetRecommendedDoctorsResponse getRecommendedDoctors(GetRecommendedDoctorsRequest request);
+
+    /**
+     * 发送报告给医生
+     *
+     * 功能说明:
+     * 1. 将待审核报告发送给指定医生
+     * 2. 自动创建医生日程
+     * 3. 发送通知消息给医生
+     *
+     * 权限控制:
+     * - 只有报告所属患者可以发送
+     * - 报告必须处于待审核状态
+     *
+     * @param request 请求参数（包含reportId和doctorId）
+     * @return 发送结果（包含scheduleId）
+     */
+    SendReportToDoctorResponse sendReportToDoctor(SendReportToDoctorRequest request);
+
+    /**
+     * 医生查询待审批报告列表
+     *
+     * 功能说明:
+     * 1. 查询发送给当前医生的待审批报告
+     * 2. 支持按报告类型、分类筛选
+     * 3. 分页查询
+     *
+     * 权限控制:
+     * - 只有DOCTOR角色可以访问
+     * - 只能查看发送给自己的待审批报告
+     *
+     * @param request 查询请求
+     * @return 查询响应(包含报告列表和分页信息)
+     */
+    QueryPendingReportsResponse queryPendingReports(QueryPendingReportsRequest request);
 }

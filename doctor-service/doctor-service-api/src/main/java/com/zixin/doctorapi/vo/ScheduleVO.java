@@ -31,9 +31,9 @@ public class ScheduleVO implements Serializable {
      */
     private String schedule;
     /**
-     * 日程类别ID
+     * 日程类别
      */
-    private Integer scheduleCategory;
+    private String scheduleCategory;
     
     /**
      * 日程类别名称
@@ -76,16 +76,45 @@ public class ScheduleVO implements Serializable {
     private String link;
 
     /**
-     * 开始时间
+     * 开始时间（毫秒时间戳）
      */
     private Long startTime;
     /**
-     * 结束时间
+     * 结束时间（毫秒时间戳）
      */
     private Long endTime;
+    
+    /**
+     * 开始时间字符串（格式: HH:mm 或 HH:mm:ss）
+     */
+    private String startTimeStr;
+    /**
+     * 结束时间字符串（格式: HH:mm 或 HH:mm:ss）
+     */
+    private String endTimeStr;
 
     /**
      * 患者ID
      */
     private Long patientId;
+
+    /**
+     * 创建时间（毫秒时间戳）
+     */
+    private Long createTime;
+
+    /**
+     * 诊断报告
+     */
+    private String diagnosisReport;
+
+    /**
+     * 处方信息
+     */
+    private String prescription;
+
+    /**
+     * 备注
+     */
+    private String notes;
 }

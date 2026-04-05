@@ -26,7 +26,7 @@ import org.springframework.web.bind.annotation.*;
 @Slf4j
 public class DoctorWorkbenchController {
 
-    @DubboReference(check = false)
+    @DubboReference(check = false, timeout = 20000)
     private DoctorWorkbenchAPI workbenchAPI;
 
     /**
@@ -35,9 +35,17 @@ public class DoctorWorkbenchController {
      * @return
      */
     @PostMapping("/schedule/add")
-    @RequireRole("DOCTOR")
+    @RequireRole({"DOCTOR", "PATIENT"})
     public Result<Boolean> addSchedule(@RequestBody AddScheduleRequest request) {
-        log.info("Add schedule request, doctorId: {}, date: {}", request.getSchedule().getScheduleDay());
+        if (request.getDoctorId() == null) {
+            request.setDoctorId(UserInfoManager.getUserId());
+        }
+        log.info("Add schedule request, doctorId: {}, patientId: {}, scheduleDay: {}, startTimeStr: {}, endTimeStr: {}", 
+                request.getDoctorId(), 
+                request.getPatientId(),
+                request.getSchedule() != null ? request.getSchedule().getScheduleDay() : null,
+                request.getSchedule() != null ? request.getSchedule().getStartTimeStr() : null,
+                request.getSchedule() != null ? request.getSchedule().getEndTimeStr() : null);
         AddScheduleResponse response = workbenchAPI.addSchedule(request);
 
         if (response.getCode() == ToBCodeEnum.SUCCESS) {
@@ -57,9 +65,8 @@ public class DoctorWorkbenchController {
      */
     @GetMapping("/schedule/list")
     @RequireRole("DOCTOR")
-    public Result<QueryScheduleResponse> querySchedule(@RequestBody QueryScheduleRequest request) {
+    public Result<QueryScheduleResponse> querySchedule(QueryScheduleRequest request) {
 
-        // 强制使用JWT中的userId,防止越权查询
         request.setDoctorId(UserInfoManager.getUserId());
 
         log.info("Query schedule request, doctorId: {}, date: {}",
@@ -174,6 +181,58 @@ public class DoctorWorkbenchController {
 
         if (response.getCode() == ToBCodeEnum.SUCCESS) {
             return Result.success(true);
+        } else {
+            return Result.error(response.getMessage());
+        }
+    }
+
+    @PostMapping("/patient/schedules")
+    public Result<GetPatientSchedulesResponse> getPatientSchedules(@RequestBody GetPatientSchedulesRequest request) {
+        log.info("Get patient schedules request, patientId: {}", request.getPatientId());
+
+        GetPatientSchedulesResponse response = workbenchAPI.getPatientSchedules(request);
+
+        if (response.getCode() == ToBCodeEnum.SUCCESS) {
+            return Result.success(response);
+        } else {
+            return Result.error(response.getMessage());
+        }
+    }
+
+    @PostMapping("/schedule/check-conflict")
+    @RequireRole({"DOCTOR", "PATIENT"})
+    public Result<CheckScheduleConflictResponse> checkScheduleConflict(@RequestBody CheckScheduleConflictRequest request) {
+        request.setDoctorId(UserInfoManager.getUserId());
+        log.info("Check schedule conflict request, doctorId: {}, day: {}", 
+                request.getDoctorId(), request.getScheduleDay());
+
+        CheckScheduleConflictResponse response = workbenchAPI.checkScheduleConflict(request);
+
+        if (response.getCode() == ToBCodeEnum.SUCCESS) {
+            return Result.success(response);
+        } else {
+            return Result.error(response.getMessage());
+        }
+    }
+
+    @GetMapping("/available-slots")
+    @RequireRole({"DOCTOR", "PATIENT"})
+    public Result<GetDoctorAvailableSlotsResponse> getDoctorAvailableSlots(
+            @RequestParam("doctorId") Long doctorId,
+            @RequestParam("scheduleDay") String scheduleDay,
+            @RequestParam(value = "slotDurationMinutes", required = false, defaultValue = "30") Integer slotDurationMinutes) {
+        
+        log.info("Get doctor available slots request, doctorId: {}, day: {}", doctorId, scheduleDay);
+
+        GetDoctorAvailableSlotsRequest request = new GetDoctorAvailableSlotsRequest();
+        request.setDoctorId(doctorId);
+        request.setScheduleDay(scheduleDay);
+        request.setSlotDurationMinutes(slotDurationMinutes);
+
+        GetDoctorAvailableSlotsResponse response = workbenchAPI.getDoctorAvailableSlots(request);
+
+        if (response.getCode() == ToBCodeEnum.SUCCESS) {
+            return Result.success(response);
         } else {
             return Result.error(response.getMessage());
         }

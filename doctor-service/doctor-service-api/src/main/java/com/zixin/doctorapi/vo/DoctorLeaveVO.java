@@ -27,5 +27,13 @@ public class DoctorLeaveVO implements Serializable {
     private Long endTime;
 
     private String reason;
+
+    private Long approverId;
+    private String approverName;
+    private String approvalComment;
+    private Long approvalTime;
+
+    private Long createTime;
+    private Long updateTime;
 }
 

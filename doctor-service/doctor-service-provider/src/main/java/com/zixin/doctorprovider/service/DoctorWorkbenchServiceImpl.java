@@ -9,6 +9,7 @@ import com.zixin.accountapi.vo.DoctorVO;
 import com.zixin.accountapi.vo.PatientVO;
 import com.zixin.aicapabilityapi.dto.GenerateMedicalRecordRequest;
 import com.zixin.aicapabilityapi.vo.MedicalRecordVO;
+import com.zixin.doctorapi.api.DoctorLeaveAPI;
 import com.zixin.doctorapi.api.DoctorWorkbenchAPI;
 import com.zixin.doctorapi.dto.*;
 import com.zixin.doctorapi.enums.ScheduleCategory;
@@ -17,6 +18,7 @@ import com.zixin.doctorapi.enums.ScheduleStatus;
 import com.zixin.doctorapi.po.DoctorSchedule;
 import com.zixin.doctorapi.po.MedicalRecord;
 import com.zixin.doctorapi.vo.ScheduleVO;
+import com.zixin.doctorapi.vo.TimeSlotVO;
 import com.zixin.doctorprovider.client.AiClient;
 import com.zixin.doctorprovider.client.DoctorClient;
 import com.zixin.doctorprovider.mapper.DoctorScheduleMapper;
@@ -30,7 +32,12 @@ import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Calendar;
+import java.util.Date;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
 /**
@@ -53,22 +60,25 @@ import java.util.stream.Collectors;
  * @author zixin
  */
 @Service
-@DubboService
+@DubboService(timeout = 20000)
 @Slf4j
 public class DoctorWorkbenchServiceImpl implements DoctorWorkbenchAPI {
     private final DoctorScheduleMapper scheduleMapper;
     private final MedicalRecordMapper medicalRecordMapper;
     private final DoctorClient doctorClient;
     private final AiClient aiClient;
+    private final DoctorLeaveAPI doctorLeaveAPI;
 
     public DoctorWorkbenchServiceImpl(DoctorScheduleMapper scheduleMapper,
                                        MedicalRecordMapper medicalRecordMapper,
                                        DoctorClient doctorClient,
-                                       AiClient aiClient) {
+                                       AiClient aiClient,
+                                       DoctorLeaveAPI doctorLeaveAPI) {
         this.scheduleMapper = scheduleMapper;
         this.medicalRecordMapper = medicalRecordMapper;
         this.doctorClient = doctorClient;
         this.aiClient = aiClient;
+        this.doctorLeaveAPI = doctorLeaveAPI;
     }
 
     @Override
@@ -98,7 +108,7 @@ public class DoctorWorkbenchServiceImpl implements DoctorWorkbenchAPI {
             if (request.getScheduleDay() != null && !request.getScheduleDay().isEmpty()) {
                 wrapper.eq(DoctorSchedule::getScheduleDay, request.getScheduleDay());
             }
-            if (request.getStatus() != null) {
+            if (request.getStatus() != null && !request.getStatus().isEmpty()) {
                 wrapper.eq(DoctorSchedule::getStatus, request.getStatus());
             }
             if (request.getScheduleCategoryId() != null) {
@@ -243,8 +253,8 @@ public class DoctorWorkbenchServiceImpl implements DoctorWorkbenchAPI {
                 // 查询更新后的日程
                 DoctorSchedule updated = scheduleMapper.selectById(request.getScheduleId());
 
-                // 异步生成电子病历
-                generateMedicalRecordAsync(schedule, request);
+                // 异步生成电子病历（使用独立线程，避免阻塞主流程）
+                CompletableFuture.runAsync(() -> generateMedicalRecord(schedule, request));
 
                 response.setCode(ToBCodeEnum.SUCCESS);
                 response.setMessage("完成日程成功");
@@ -435,38 +445,245 @@ public class DoctorWorkbenchServiceImpl implements DoctorWorkbenchAPI {
 
     @Override
     public AddScheduleResponse addSchedule(AddScheduleRequest request) {
-        // 1. 构建 DoctorSchedule 对象
-        DoctorSchedule schedule = new DoctorSchedule();
-        BeanUtils.copyProperties(request.getSchedule(), schedule);
-        if(request.getDoctorId() == null) {
-            schedule.setDoctorId(UserInfoManager.getUserId());
-            schedule.setDoctorName(UserInfoManager.getUsername());
-        }else{
-            schedule.setDoctorId(request.getDoctorId());
-            schedule.setDoctorName(request.getDoctorName());
-        }
-        schedule.setStatus(ScheduleStatus.PENDING.getCode());  // 新增日程默认为待处理
-        schedule.setCreateTime(System.currentTimeMillis());
-        schedule.setUpdateTime(System.currentTimeMillis());
-        schedule.setPatientId(request.getPatientId());
-        PatientVO patientVO = doctorClient.getPatientInfo(GetPatientInfoRequest.builder()
-                .userId(request.getPatientId())
-                .build());
-        schedule.setPatientName(patientVO != null ? patientVO.getUsername() : "unknown");
-
-        // 2. 插入数据库
-        int rows = scheduleMapper.insert(schedule);
         AddScheduleResponse response = new AddScheduleResponse();
-        if (rows > 0) {
-            response.setCode(ToBCodeEnum.SUCCESS);
-            response.setMessage("添加日程成功");
-            log.info("Add schedule success, scheduleId: {}, doctorId: {}",
-                    schedule.getId(), request.getDoctorId());
-        } else {
+        
+        try {
+            if (request.getDoctorId() == null) {
+                response.setCode(ToBCodeEnum.FAIL);
+                response.setMessage("医生ID不能为空");
+                return response;
+            }
+            
+            DoctorSchedule schedule = new DoctorSchedule();
+            BeanUtils.copyProperties(request.getSchedule(), schedule);
+            
+            Long doctorId = request.getDoctorId();
+            String doctorName;
+            
+            if (request.getDoctorName() != null && !request.getDoctorName().isEmpty()) {
+                doctorName = request.getDoctorName();
+            } else {
+                try {
+                    DoctorVO doctorVO = doctorClient.getDoctorInfo(GetDoctorInfoRequest.builder()
+                            .userId(doctorId)
+                            .build());
+                    doctorName = doctorVO != null ? doctorVO.getUsername() : "unknown";
+                } catch (Exception e) {
+                    log.warn("Failed to get doctor info for userId: {}", doctorId, e);
+                    doctorName = "unknown";
+                }
+            }
+            
+            schedule.setDoctorId(doctorId);
+            schedule.setDoctorName(doctorName);
+            
+            if (schedule.getScheduleDay() == null || schedule.getScheduleDay().isEmpty()) {
+                response.setCode(ToBCodeEnum.FAIL);
+                response.setMessage("日程日期不能为空");
+                return response;
+            }
+            
+            if (schedule.getStartTime() == null || schedule.getEndTime() == null) {
+                if (request.getSchedule().getStartTimeStr() != null 
+                        && request.getSchedule().getEndTimeStr() != null) {
+                    long[] timestamps = parseTimeStrings(
+                            schedule.getScheduleDay(),
+                            request.getSchedule().getStartTimeStr(),
+                            request.getSchedule().getEndTimeStr()
+                    );
+                    schedule.setStartTime(timestamps[0]);
+                    schedule.setEndTime(timestamps[1]);
+                    log.info("Parsed time strings: startTimeStr={}, endTimeStr={}, startTime={}, endTime={}", 
+                            request.getSchedule().getStartTimeStr(),
+                            request.getSchedule().getEndTimeStr(),
+                            timestamps[0], timestamps[1]);
+                } else {
+                    SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd");
+                    Date date = sdf.parse(schedule.getScheduleDay());
+                    
+                    Calendar startCal = Calendar.getInstance();
+                    startCal.setTime(date);
+                    startCal.set(Calendar.HOUR_OF_DAY, 8);
+                    startCal.set(Calendar.MINUTE, 0);
+                    startCal.set(Calendar.SECOND, 0);
+                    
+                    Calendar endCal = Calendar.getInstance();
+                    endCal.setTime(date);
+                    endCal.set(Calendar.HOUR_OF_DAY, 18);
+                    endCal.set(Calendar.MINUTE, 0);
+                    endCal.set(Calendar.SECOND, 0);
+                    
+                    schedule.setStartTime(startCal.getTimeInMillis());
+                    schedule.setEndTime(endCal.getTimeInMillis());
+                }
+            }
+            
+            if (schedule.getStartTime() >= schedule.getEndTime()) {
+                response.setCode(ToBCodeEnum.FAIL);
+                response.setMessage("开始时间必须小于结束时间");
+                return response;
+            }
+
+            CheckDoctorLeaveRequest leaveRequest = new CheckDoctorLeaveRequest();
+            leaveRequest.setDoctorId(schedule.getDoctorId());
+            leaveRequest.setCheckDay(schedule.getScheduleDay());
+            CheckDoctorLeaveResponse leaveResponse = doctorLeaveAPI.checkDoctorLeave(leaveRequest);
+
+            if (leaveResponse.getOnLeave() != null && leaveResponse.getOnLeave()) {
+                log.warn("Doctor is on leave, cannot add schedule, doctorId: {}, day: {}",
+                        schedule.getDoctorId(), schedule.getScheduleDay());
+                response.setCode(ToBCodeEnum.FAIL);
+                response.setMessage("医生在当天休假，无法预约。休假原因: " + 
+                        (leaveResponse.getLeaveInfo() != null && leaveResponse.getLeaveInfo().getReason() != null 
+                                ? leaveResponse.getLeaveInfo().getReason() : "无"));
+                return response;
+            }
+
+            List<DoctorSchedule> conflictingSchedules = scheduleMapper.findConflictingSchedules(
+                    schedule.getDoctorId(),
+                    schedule.getScheduleDay(),
+                    schedule.getStartTime(),
+                    schedule.getEndTime(),
+                    null
+            );
+            
+            if (!conflictingSchedules.isEmpty()) {
+                SimpleDateFormat debugFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+                log.warn("Schedule conflict detected, doctorId: {}, day: {}, newStartTime: {}, newEndTime: {}, conflicts: {}", 
+                        schedule.getDoctorId(), schedule.getScheduleDay(), 
+                        debugFormat.format(new Date(schedule.getStartTime())),
+                        debugFormat.format(new Date(schedule.getEndTime())),
+                        conflictingSchedules.size());
+                for (DoctorSchedule conflict : conflictingSchedules) {
+                    log.warn("Conflict schedule: id={}, startTime={}, endTime={}, status={}", 
+                            conflict.getId(),
+                            conflict.getStartTime() != null ? debugFormat.format(new Date(conflict.getStartTime())) : "null",
+                            conflict.getEndTime() != null ? debugFormat.format(new Date(conflict.getEndTime())) : "null",
+                            conflict.getStatus());
+                }
+                response.setCode(ToBCodeEnum.FAIL);
+                response.setMessage("该时间段已有日程安排，请选择其他时间");
+                return response;
+            }
+            
+            schedule.setStatus(ScheduleStatus.PENDING.getCode());
+            schedule.setCreateTime(System.currentTimeMillis());
+            schedule.setUpdateTime(System.currentTimeMillis());
+            schedule.setPatientId(request.getPatientId());
+            if (request.getPatientId() != null) {
+                try {
+                    PatientVO patientVO = doctorClient.getPatientInfo(GetPatientInfoRequest.builder()
+                            .userId(request.getPatientId())
+                            .build());
+                    schedule.setPatientName(patientVO != null ? patientVO.getUsername() : "unknown");
+                } catch (Exception e) {
+                    log.warn("Failed to get patient info for patientId: {}", request.getPatientId(), e);
+                    schedule.setPatientName("unknown");
+                }
+            }
+
+            int rows = scheduleMapper.insert(schedule);
+            if (rows > 0) {
+                response.setCode(ToBCodeEnum.SUCCESS);
+                response.setMessage("添加日程成功");
+                response.setScheduleId(schedule.getId());
+                log.info("Add schedule success, scheduleId: {}, doctorId: {}",
+                        schedule.getId(), request.getDoctorId());
+            } else {
+                response.setCode(ToBCodeEnum.FAIL);
+                response.setMessage("添加日程失败");
+                log.warn("Add schedule failed, doctorId: {}", request.getDoctorId());
+            }
+        } catch (Exception e) {
+            log.error("Add schedule error", e);
             response.setCode(ToBCodeEnum.FAIL);
-            response.setMessage("添加日程失败");
-            log.warn("Add schedule failed, doctorId: {}", request.getDoctorId());
+            response.setMessage("添加日程失败: " + e.getMessage());
         }
+        return response;
+    }
+    
+    private long[] parseTimeStrings(String scheduleDay, String startTimeStr, String endTimeStr) throws Exception {
+        SimpleDateFormat dayFormat = new SimpleDateFormat("yyyy-MM-dd");
+        Date date = dayFormat.parse(scheduleDay);
+        
+        SimpleDateFormat timeFormat = new SimpleDateFormat("HH:mm");
+        if (startTimeStr.contains(":") && startTimeStr.split(":").length == 3) {
+            timeFormat = new SimpleDateFormat("HH:mm:ss");
+        }
+        
+        Date startTimeDate = timeFormat.parse(startTimeStr);
+        Date endTimeDate = timeFormat.parse(endTimeStr);
+        
+        Calendar startCal = Calendar.getInstance();
+        startCal.setTime(date);
+        Calendar tempCal = Calendar.getInstance();
+        tempCal.setTime(startTimeDate);
+        startCal.set(Calendar.HOUR_OF_DAY, tempCal.get(Calendar.HOUR_OF_DAY));
+        startCal.set(Calendar.MINUTE, tempCal.get(Calendar.MINUTE));
+        startCal.set(Calendar.SECOND, tempCal.get(Calendar.SECOND));
+        startCal.set(Calendar.MILLISECOND, 0);
+        
+        Calendar endCal = Calendar.getInstance();
+        endCal.setTime(date);
+        tempCal.setTime(endTimeDate);
+        endCal.set(Calendar.HOUR_OF_DAY, tempCal.get(Calendar.HOUR_OF_DAY));
+        endCal.set(Calendar.MINUTE, tempCal.get(Calendar.MINUTE));
+        endCal.set(Calendar.SECOND, tempCal.get(Calendar.SECOND));
+        endCal.set(Calendar.MILLISECOND, 0);
+        
+        return new long[]{startCal.getTimeInMillis(), endCal.getTimeInMillis()};
+    }
+
+    @Override
+    public GetPatientSchedulesResponse getPatientSchedules(GetPatientSchedulesRequest request) {
+        GetPatientSchedulesResponse response = new GetPatientSchedulesResponse();
+
+        try {
+            if (request.getPatientId() == null) {
+                response.setCode(ToBCodeEnum.FAIL);
+                response.setMessage("患者ID不能为空");
+                return response;
+            }
+
+            Page<DoctorSchedule> page = new Page<>(
+                    request.getPageNum(),
+                    request.getPageSize()
+            );
+
+            LambdaQueryWrapper<DoctorSchedule> wrapper = new LambdaQueryWrapper<>();
+            wrapper.eq(DoctorSchedule::getPatientId, request.getPatientId());
+
+            if (request.getStatus() != null && !request.getStatus().isEmpty()) {
+                wrapper.eq(DoctorSchedule::getStatus, request.getStatus());
+            }
+
+            wrapper.orderByDesc(DoctorSchedule::getCreateTime);
+
+            Page<DoctorSchedule> schedulePage = scheduleMapper.selectPage(page, wrapper);
+
+            PageUtils pageUtils = new PageUtils(schedulePage);
+
+            if (pageUtils.getList() != null && !pageUtils.getList().isEmpty()) {
+                List<ScheduleVO> scheduleVOS = ((List<DoctorSchedule>) pageUtils.getList()).stream()
+                        .map(this::convertToVO)
+                        .collect(Collectors.toList());
+                pageUtils.setList(scheduleVOS);
+            }
+
+            response.setCode(ToBCodeEnum.SUCCESS);
+            response.setMessage("查询成功");
+            response.setSchedules(pageUtils);
+
+            log.info("Get patient schedules success, patientId: {}, total: {}, pageNum: {}, pageSize: {}",
+                    request.getPatientId(), pageUtils.getTotalCount(),
+                    request.getPageNum(), request.getPageSize());
+
+        } catch (Exception e) {
+            log.error("Get patient schedules error", e);
+            response.setCode(ToBCodeEnum.FAIL);
+            response.setMessage("查询患者预约记录失败: " + e.getMessage());
+        }
+
         return response;
     }
 
@@ -513,7 +730,14 @@ public class DoctorWorkbenchServiceImpl implements DoctorWorkbenchAPI {
         ScheduleVO vo = new ScheduleVO();
         BeanUtils.copyProperties(schedule, vo);
         
-        // 设置优先级描述
+        SimpleDateFormat timeFormat = new SimpleDateFormat("HH:mm");
+        if (schedule.getStartTime() != null) {
+            vo.setStartTimeStr(timeFormat.format(new Date(schedule.getStartTime())));
+        }
+        if (schedule.getEndTime() != null) {
+            vo.setEndTimeStr(timeFormat.format(new Date(schedule.getEndTime())));
+        }
+        
         try {
             SchedulePriority priority = SchedulePriority.fromCode(schedule.getPriority());
             vo.setPriorityDesc(priority.getDescription());
@@ -521,7 +745,6 @@ public class DoctorWorkbenchServiceImpl implements DoctorWorkbenchAPI {
             vo.setPriorityDesc("未知");
         }
         
-        // 设置状态描述
         try {
             ScheduleStatus status = ScheduleStatus.fromCode(schedule.getStatus());
             vo.setStatusDesc(status.getDescription());
@@ -529,7 +752,6 @@ public class DoctorWorkbenchServiceImpl implements DoctorWorkbenchAPI {
             vo.setStatusDesc("未知");
         }
         
-        // 设置类别名称
         if (schedule.getScheduleCategory() != null) {
             ScheduleCategory category = ScheduleCategory.getByName(schedule.getScheduleCategory());
             if (category != null) {
@@ -540,7 +762,6 @@ public class DoctorWorkbenchServiceImpl implements DoctorWorkbenchAPI {
             }
         }
 
-        // 使用userId查询医生和患者信息
         if (schedule.getDoctorId() != null) {
             try {
                 DoctorVO doctorVO = doctorClient.getDoctorInfo(GetDoctorInfoRequest.builder()
@@ -567,7 +788,30 @@ public class DoctorWorkbenchServiceImpl implements DoctorWorkbenchAPI {
             }
         }
 
+        // 解析 result 字段，提取诊断报告、处方信息、备注
+        parseResultToVO(schedule.getResult(), vo);
+
         return vo;
+    }
+
+    /**
+     * 解析 result 字段，提取诊断报告、处方信息、备注
+     */
+    private void parseResultToVO(String result, ScheduleVO vo) {
+        if (result == null || result.isEmpty()) {
+            return;
+        }
+
+        String[] lines = result.split("\n");
+        for (String line : lines) {
+            if (line.startsWith("诊断报告: ")) {
+                vo.setDiagnosisReport(line.substring("诊断报告: ".length()));
+            } else if (line.startsWith("处方信息: ")) {
+                vo.setPrescription(line.substring("处方信息: ".length()));
+            } else if (line.startsWith("备注: ")) {
+                vo.setNotes(line.substring("备注: ".length()));
+            }
+        }
     }
 
     /**
@@ -589,11 +833,11 @@ public class DoctorWorkbenchServiceImpl implements DoctorWorkbenchAPI {
     }
 
     /**
-     * 异步生成电子病历
+     * 生成电子病历
      *
      * 日程完成后，调用 AI 服务生成电子病历并保存到数据库
      */
-    private void generateMedicalRecordAsync(DoctorSchedule schedule, CompleteScheduleRequest request) {
+    private void generateMedicalRecord(DoctorSchedule schedule, CompleteScheduleRequest request) {
         try {
             // 构建请求
             GenerateMedicalRecordRequest recordRequest = new GenerateMedicalRecordRequest();
@@ -653,5 +897,168 @@ public class DoctorWorkbenchServiceImpl implements DoctorWorkbenchAPI {
             // 电子病历生成失败不影响主流程
             log.error("Failed to generate medical record for schedule: {}", schedule.getId(), e);
         }
+    }
+
+    @Override
+    public CheckScheduleConflictResponse checkScheduleConflict(CheckScheduleConflictRequest request) {
+        CheckScheduleConflictResponse response = new CheckScheduleConflictResponse();
+        
+        try {
+            if (request.getDoctorId() == null) {
+                response.setCode(ToBCodeEnum.FAIL);
+                response.setMessage("医生ID不能为空");
+                return response;
+            }
+            
+            if (request.getScheduleDay() == null || request.getScheduleDay().isEmpty()) {
+                response.setCode(ToBCodeEnum.FAIL);
+                response.setMessage("日程日期不能为空");
+                return response;
+            }
+            
+            if (request.getStartTime() == null || request.getEndTime() == null) {
+                response.setCode(ToBCodeEnum.FAIL);
+                response.setMessage("开始时间和结束时间不能为空");
+                return response;
+            }
+            
+            if (request.getStartTime() >= request.getEndTime()) {
+                response.setCode(ToBCodeEnum.FAIL);
+                response.setMessage("开始时间必须小于结束时间");
+                return response;
+            }
+            
+            List<DoctorSchedule> conflictingSchedules = scheduleMapper.findConflictingSchedules(
+                    request.getDoctorId(),
+                    request.getScheduleDay(),
+                    request.getStartTime(),
+                    request.getEndTime(),
+                    request.getExcludeScheduleId()
+            );
+            
+            response.setCode(ToBCodeEnum.SUCCESS);
+            response.setMessage("查询成功");
+            response.setHasConflict(!conflictingSchedules.isEmpty());
+            
+            if (!conflictingSchedules.isEmpty()) {
+                List<ScheduleVO> conflictVOs = conflictingSchedules.stream()
+                        .map(this::convertToVO)
+                        .collect(Collectors.toList());
+                response.setConflictingSchedules(conflictVOs);
+            }
+            
+            log.info("Check schedule conflict, doctorId: {}, day: {}, hasConflict: {}", 
+                    request.getDoctorId(), request.getScheduleDay(), response.getHasConflict());
+            
+        } catch (Exception e) {
+            log.error("Check schedule conflict error", e);
+            response.setCode(ToBCodeEnum.FAIL);
+            response.setMessage("检查日程冲突失败: " + e.getMessage());
+        }
+        
+        return response;
+    }
+
+    @Override
+    public GetDoctorAvailableSlotsResponse getDoctorAvailableSlots(GetDoctorAvailableSlotsRequest request) {
+        GetDoctorAvailableSlotsResponse response = new GetDoctorAvailableSlotsResponse();
+        
+        try {
+            if (request.getDoctorId() == null) {
+                response.setCode(ToBCodeEnum.FAIL);
+                response.setMessage("医生ID不能为空");
+                return response;
+            }
+            
+            if (request.getScheduleDay() == null || request.getScheduleDay().isEmpty()) {
+                response.setCode(ToBCodeEnum.FAIL);
+                response.setMessage("日程日期不能为空");
+                return response;
+            }
+            
+            List<DoctorSchedule> existingSchedules = scheduleMapper.findDoctorSchedulesByDay(
+                    request.getDoctorId(), 
+                    request.getScheduleDay()
+            );
+            
+            List<TimeSlotVO> availableSlots = calculateAvailableSlots(
+                    request.getScheduleDay(),
+                    existingSchedules,
+                    request.getSlotDurationMinutes()
+            );
+            
+            response.setCode(ToBCodeEnum.SUCCESS);
+            response.setMessage("查询成功");
+            response.setAvailableSlots(availableSlots);
+            
+            log.info("Get doctor available slots, doctorId: {}, day: {}, slots: {}", 
+                    request.getDoctorId(), request.getScheduleDay(), availableSlots.size());
+            
+        } catch (Exception e) {
+            log.error("Get doctor available slots error", e);
+            response.setCode(ToBCodeEnum.FAIL);
+            response.setMessage("查询医生空闲时间段失败: " + e.getMessage());
+        }
+        
+        return response;
+    }
+
+    private List<TimeSlotVO> calculateAvailableSlots(String scheduleDay, 
+                                                      List<DoctorSchedule> existingSchedules,
+                                                      Integer slotDurationMinutes) {
+        List<TimeSlotVO> slots = new ArrayList<>();
+        
+        try {
+            SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd");
+            Date date = sdf.parse(scheduleDay);
+            
+            Calendar workStart = Calendar.getInstance();
+            workStart.setTime(date);
+            workStart.set(Calendar.HOUR_OF_DAY, 8);
+            workStart.set(Calendar.MINUTE, 0);
+            workStart.set(Calendar.SECOND, 0);
+            
+            Calendar workEnd = Calendar.getInstance();
+            workEnd.setTime(date);
+            workEnd.set(Calendar.HOUR_OF_DAY, 18);
+            workEnd.set(Calendar.MINUTE, 0);
+            workEnd.set(Calendar.SECOND, 0);
+            
+            long slotDuration = slotDurationMinutes * 60 * 1000L;
+            long workStartTime = workStart.getTimeInMillis();
+            long workEndTime = workEnd.getTimeInMillis();
+            
+            SimpleDateFormat timeFormat = new SimpleDateFormat("HH:mm");
+            
+            for (long slotStart = workStartTime; slotStart < workEndTime; slotStart += slotDuration) {
+                long slotEnd = slotStart + slotDuration;
+                if (slotEnd > workEndTime) {
+                    break;
+                }
+                
+                boolean isAvailable = true;
+                for (DoctorSchedule schedule : existingSchedules) {
+                    if (schedule.getStartTime() != null && schedule.getEndTime() != null) {
+                        if (slotStart < schedule.getEndTime() && slotEnd > schedule.getStartTime()) {
+                            isAvailable = false;
+                            break;
+                        }
+                    }
+                }
+                
+                TimeSlotVO slot = new TimeSlotVO();
+                slot.setStartTime(slotStart);
+                slot.setEndTime(slotEnd);
+                slot.setStartTimeStr(timeFormat.format(new Date(slotStart)));
+                slot.setEndTimeStr(timeFormat.format(new Date(slotEnd)));
+                slot.setAvailable(isAvailable);
+                slots.add(slot);
+            }
+            
+        } catch (Exception e) {
+            log.error("Calculate available slots error", e);
+        }
+        
+        return slots;
     }
 }
