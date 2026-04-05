@@ -1,19 +1,15 @@
 package com.zixin.utils.security;
 
 import org.apache.ibatis.type.*;
-import org.springframework.stereotype.Component;
 
 import java.sql.*;
 
-@MappedTypes(String.class)
-@MappedJdbcTypes(JdbcType.VARCHAR)
-@Component
 public class SensitiveDataEncryptHandler extends BaseTypeHandler<String> {
 
-    private final AesProperties aesProperties;
+    private static AesProperties aesProperties;
 
-    public SensitiveDataEncryptHandler(AesProperties aesProperties) {
-        this.aesProperties = aesProperties;
+    public static void setAesProperties(AesProperties properties) {
+        aesProperties = properties;
     }
 
     @Override

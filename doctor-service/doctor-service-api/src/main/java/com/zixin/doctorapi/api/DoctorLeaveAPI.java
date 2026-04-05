@@ -28,5 +28,20 @@ public interface DoctorLeaveAPI {
      * 分页查询请假单
      */
     QueryLeaveResponse queryLeaves(QueryLeaveRequest request);
+
+    /**
+     * 检查医生在指定日期是否休假
+     */
+    CheckDoctorLeaveResponse checkDoctorLeave(CheckDoctorLeaveRequest request);
+
+    /**
+     * 管理员审批休假申请
+     */
+    ApproveLeaveResponse approveLeave(ApproveLeaveRequest request);
+
+    /**
+     * 管理员查询待审批休假列表
+     */
+    QueryLeaveResponse queryPendingLeaves(QueryLeaveRequest request);
 }
 

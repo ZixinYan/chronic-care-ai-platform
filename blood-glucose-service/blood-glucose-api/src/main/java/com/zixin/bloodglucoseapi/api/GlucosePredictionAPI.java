@@ -15,7 +15,7 @@ public interface GlucosePredictionAPI {
      *
      * 功能说明:
      * 1. 接收多维度血糖数据
-     * 2. 调用Python预测服务【TODO: 集成外部Python接口】
+     * 2. 调用Python预测服务
      * 3. 返回未来几小时的血糖预测值
      *
      * @param request 预测请求

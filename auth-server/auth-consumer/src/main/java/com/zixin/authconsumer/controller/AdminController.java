@@ -50,7 +50,7 @@ public class AdminController {
     @PutMapping("/users/{userId}/roles")
     @RequireRole("ADMIN")
     public Result<?> updateUserRoles(
-            @PathVariable Long userId,
+            @PathVariable("userId") Long userId,
             @RequestBody List<Integer> roleCodes) {
         
         log.info("Admin update user roles request - userId: {}, roleCodes: {}", userId, roleCodes);

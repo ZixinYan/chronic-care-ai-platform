@@ -120,7 +120,7 @@ public class DoctorScheduleTools {
     /**
      * 查询指定日期范围内的医生请假情况，用于 AI 智能排班。
      */
-    @Tool(name = "queryDoctorLeaves", description = "查询指定日期范围内的医生请假情况（已批准的请假），返回 JSON 列表，用于智能排班时排除请假医生")
+    @Tool(name = "queryDoctorLeaves", description = "查询指定日期范围内的医生请假情况（待审批和已批准的请假），返回 JSON 列表，用于智能排班时排除请假医生")
     public String queryDoctorLeaves(String startDay, String endDay) {
         log.info("[Tool] queryDoctorLeaves, startDay={}, endDay={}", startDay, endDay);
 
@@ -135,7 +135,7 @@ public class DoctorScheduleTools {
             QueryLeaveRequest request = new QueryLeaveRequest();
             request.setStartDay(normalizedStartDay);
             request.setEndDay(normalizedEndDay);
-            request.setStatus("APPROVED"); // 只查询已批准的请假
+            request.setStatus("PENDING,APPROVED");
             request.setPageSize(1000);
 
             QueryLeaveResponse response = doctorLeaveAPI.queryLeaves(request);
@@ -151,6 +151,7 @@ public class DoctorScheduleTools {
             List<DoctorLeaveSummary> summaries = pageUtils.getList().stream()
                     .filter(item -> item instanceof DoctorLeaveVO)
                     .map(item -> (DoctorLeaveVO) item)
+                    .filter(leave -> "PENDING".equals(leave.getStatus()) || "APPROVED".equals(leave.getStatus()))
                     .map(this::convertToLeaveSummary)
                     .collect(Collectors.toList());
 

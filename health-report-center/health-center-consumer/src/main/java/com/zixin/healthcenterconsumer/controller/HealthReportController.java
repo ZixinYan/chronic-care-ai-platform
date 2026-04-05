@@ -112,6 +112,33 @@ public class HealthReportController {
             throw new BusinessException(response.getMessage());
         }
     }
+
+    /**
+     * 保存文字报告
+     * 
+     * @param request 文字报告请求
+     * @return 保存结果
+     */
+    @PostMapping("/save-text")
+    @RequireRole("PATIENT")
+    public Result<SaveTextReportResponse> saveTextReport(@RequestBody SaveTextReportRequest request) {
+        Long currentUserId = UserInfoManager.getUserIdOrThrow();
+        String traceId = UserInfoManager.getTraceId();
+
+        request.setUploaderId(currentUserId);
+        request.setPatientId(currentUserId);
+        
+        log.info("saveTextReport - userId: {}, title: {}, category: {}, traceId: {}",
+                currentUserId, request.getTitle(), request.getCategory(), traceId);
+
+        SaveTextReportResponse response = healthReportAPI.saveTextReport(request);
+
+        if (ToBCodeEnum.SUCCESS.equals(response.getCode())) {
+            return Result.success(response);
+        } else {
+            throw new BusinessException(response.getMessage());
+        }
+    }
     
     /**
      * 查询健康报告列表
@@ -175,7 +202,7 @@ public class HealthReportController {
      * @return 报告详情
      */
     @GetMapping("/detail")
-    @RequireRole("PATIENT")
+    @RequireRole({"PATIENT","DOCTOR"})
     public Result<GetReportDetailResponse> getReportDetail(@RequestParam(value = "reportId") Long reportId) {
         // 从ThreadLocal获取当前用户信息
         Long currentUserId = UserInfoManager.getUserIdOrThrow();
@@ -256,6 +283,109 @@ public class HealthReportController {
         request.setDays(days);
 
         GetRecentAISummaryResponse response = healthReportAPI.getRecentAISummary(request);
+
+        if (ToBCodeEnum.SUCCESS.equals(response.getCode())) {
+            return Result.success(response);
+        } else {
+            throw new BusinessException(response.getMessage());
+        }
+    }
+
+    /**
+     * 获取AI推荐医生列表
+     *
+     * 权限要求:
+     * - 需要PATIENT角色
+     * - 只能为自己待审核的报告获取推荐医生
+     *
+     * @param reportId 报告ID
+     * @return 推荐医生列表
+     */
+    @GetMapping("/recommended-doctors")
+    @RequireRole("PATIENT")
+    public Result<GetRecommendedDoctorsResponse> getRecommendedDoctors(
+            @RequestParam(value = "reportId") Long reportId) {
+        Long currentUserId = UserInfoManager.getUserIdOrThrow();
+        String traceId = UserInfoManager.getTraceId();
+
+        log.info("getRecommendedDoctors - userId: {}, reportId: {}, traceId: {}",
+                currentUserId, reportId, traceId);
+
+        GetRecommendedDoctorsRequest request = new GetRecommendedDoctorsRequest();
+        request.setReportId(reportId);
+
+        GetRecommendedDoctorsResponse response = healthReportAPI.getRecommendedDoctors(request);
+
+        if (ToBCodeEnum.SUCCESS.equals(response.getCode())) {
+            return Result.success(response);
+        } else {
+            throw new BusinessException(response.getMessage());
+        }
+    }
+
+    /**
+     * 发送报告给医生
+     *
+     * 权限要求:
+     * - 需要PATIENT角色
+     * - 只能发送自己待审核的报告
+     *
+     * @param request 发送请求（包含reportId和doctorId）
+     * @return 发送结果
+     */
+    @PostMapping("/send-to-doctor")
+    @RequireRole("PATIENT")
+    public Result<SendReportToDoctorResponse> sendReportToDoctor(@RequestBody SendReportToDoctorRequest request) {
+        Long currentUserId = UserInfoManager.getUserIdOrThrow();
+        String traceId = UserInfoManager.getTraceId();
+
+        log.info("sendReportToDoctor - userId: {}, reportId: {}, doctorId: {}, traceId: {}",
+                currentUserId, request.getReportId(), request.getDoctorId(), traceId);
+
+        SendReportToDoctorResponse response = healthReportAPI.sendReportToDoctor(request);
+
+        if (ToBCodeEnum.SUCCESS.equals(response.getCode())) {
+            return Result.success(response);
+        } else {
+            throw new BusinessException(response.getMessage());
+        }
+    }
+
+    /**
+     * 医生查询待审批报告列表
+     *
+     * 权限要求:
+     * - 需要DOCTOR角色
+     * - 只能查看发送给自己的待审批报告
+     *
+     * @param reportType 报告类型 (可选)
+     * @param category 报告分类 (可选)
+     * @param pageNum 页码 (默认1)
+     * @param pageSize 每页数量 (默认10)
+     * @return 待审批报告列表
+     */
+    @GetMapping("/pending-approval")
+    @RequireRole("DOCTOR")
+    public Result<QueryPendingReportsResponse> queryPendingReports(
+            @RequestParam(required = false, value = "reportType") Integer reportType,
+            @RequestParam(required = false, value = "category") String category,
+            @RequestParam(defaultValue = "1", value = "pageNum") Integer pageNum,
+            @RequestParam(defaultValue = "10", value = "pageSize") Integer pageSize) {
+
+        Long doctorId = UserInfoManager.getUserIdOrThrow();
+        String traceId = UserInfoManager.getTraceId();
+
+        log.info("queryPendingReports - doctorId: {}, pageNum: {}, pageSize: {}, traceId: {}",
+                doctorId, pageNum, pageSize, traceId);
+
+        QueryPendingReportsRequest request = new QueryPendingReportsRequest();
+        request.setDoctorId(doctorId);
+        request.setReportType(reportType);
+        request.setCategory(category);
+        request.setPageNum(pageNum);
+        request.setPageSize(pageSize);
+
+        QueryPendingReportsResponse response = healthReportAPI.queryPendingReports(request);
 
         if (ToBCodeEnum.SUCCESS.equals(response.getCode())) {
             return Result.success(response);

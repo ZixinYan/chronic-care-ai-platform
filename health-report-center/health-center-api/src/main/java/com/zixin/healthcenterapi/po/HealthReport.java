@@ -44,6 +44,12 @@ public class HealthReport {
     private Long attendingDoctorId;
     
     /**
+     * 关联的日程ID
+     * 发送报告给医生时创建的日程ID
+     */
+    private Long scheduleId;
+    
+    /**
      * 报告类型
      * 1 - IMAGE (图片报告)
      * 2 - TEXT (文字报告)

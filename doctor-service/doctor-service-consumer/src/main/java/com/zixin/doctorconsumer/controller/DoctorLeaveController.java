@@ -63,13 +63,43 @@ public class DoctorLeaveController {
         }
     }
 
-    @PostMapping("/list")
+    @GetMapping("/list")
     @RequireRole("DOCTOR")
-    public Result<QueryLeaveResponse> queryLeaves(@RequestBody QueryLeaveRequest request) {
+    public Result<QueryLeaveResponse> queryLeaves(QueryLeaveRequest request) {
         request.setDoctorId(UserInfoManager.getUserId());
         log.info("Query leaves request, doctorId: {}, status: {}", request.getDoctorId(), request.getStatus());
 
         QueryLeaveResponse response = leaveAPI.queryLeaves(request);
+
+        if (response.getCode() == ToBCodeEnum.SUCCESS) {
+            return Result.success(response);
+        } else {
+            return Result.error(response.getMessage());
+        }
+    }
+
+    @PostMapping("/admin/approve")
+    @RequireRole("ADMIN")
+    public Result<Boolean> approveLeave(@RequestBody ApproveLeaveRequest request) {
+        request.setApproverId(UserInfoManager.getUserId());
+        log.info("Approve leave request, leaveId: {}, status: {}, approverId: {}", 
+                request.getLeaveId(), request.getStatus(), request.getApproverId());
+
+        ApproveLeaveResponse response = leaveAPI.approveLeave(request);
+
+        if (response.getCode() == ToBCodeEnum.SUCCESS && response.getSuccess()) {
+            return Result.success(true);
+        } else {
+            return Result.error(response.getMessage());
+        }
+    }
+
+    @GetMapping("/admin/pending")
+    @RequireRole("ADMIN")
+    public Result<QueryLeaveResponse> queryPendingLeaves(QueryLeaveRequest request) {
+        log.info("Query pending leaves request, pageNum: {}, pageSize: {}", request.getPageNum(), request.getPageSize());
+
+        QueryLeaveResponse response = leaveAPI.queryPendingLeaves(request);
 
         if (response.getCode() == ToBCodeEnum.SUCCESS) {
             return Result.success(response);
