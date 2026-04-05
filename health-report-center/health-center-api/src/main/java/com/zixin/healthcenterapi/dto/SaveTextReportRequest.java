@@ -22,7 +22,7 @@ public class SaveTextReportRequest implements Serializable {
     private Long uploaderId;
 
     /**
-     * 报告分类（如 blood_glucose_prediction）
+     * 报告分类
      */
     private String category;
 
