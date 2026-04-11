@@ -169,6 +169,8 @@ public class GlucosePredictionServiceImpl implements GlucosePredictionAPI {
         }
     }
 
+
+    // TODO 修改为Python
     private List<Double> predictWithPythonService(PredictGlucoseRequest request) {
         List<Double> cbg = request.getCbg();
         int predictHours = request.getPredictHours() != null ? request.getPredictHours() : 3;
