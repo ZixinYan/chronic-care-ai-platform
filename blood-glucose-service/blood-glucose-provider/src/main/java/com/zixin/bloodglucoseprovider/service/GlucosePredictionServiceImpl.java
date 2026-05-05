@@ -4,6 +4,7 @@ import com.zixin.accountapi.vo.PatientVO;
 import com.zixin.bloodglucoseapi.api.GlucosePredictionAPI;
 import com.zixin.bloodglucoseapi.dto.PredictGlucoseRequest;
 import com.zixin.bloodglucoseapi.dto.PredictGlucoseResponse;
+import com.zixin.bloodglucoseprovider.client.PythonPredictClient;
 import com.zixin.bloodglucoseprovider.client.UserIdentityClient;
 import com.zixin.thirdpartyapi.api.SMSAPI;
 import com.zixin.thirdpartyapi.dto.SendSMSRequest;
@@ -31,11 +32,14 @@ public class GlucosePredictionServiceImpl implements GlucosePredictionAPI {
 
     private final UserIdentityClient userIdentityClient;
 
+    private final PythonPredictClient pythonPredictClient;
+
     @DubboReference(timeout = 50000, check = false)
     private SMSAPI smsAPI;
 
-    public GlucosePredictionServiceImpl(UserIdentityClient userIdentityClient) {
+    public GlucosePredictionServiceImpl(UserIdentityClient userIdentityClient, PythonPredictClient pythonPredictClient) {
         this.userIdentityClient = userIdentityClient;
+        this.pythonPredictClient = pythonPredictClient;
     }
 
     @Override
@@ -60,10 +64,14 @@ public class GlucosePredictionServiceImpl implements GlucosePredictionAPI {
 
             List<Double> predictedValues = predictWithPythonService(request);
             List<Long> predictedTimes = generatePredictedTimes(request.getPredictHours());
+            List<Double> predictedValuesMmol = predictedValues.stream()
+                    .map(v -> Math.round(v * MG_DL_TO_MMOL_L * 100.0) / 100.0)
+                    .collect(java.util.stream.Collectors.toList());
 
             response.setCode(ToBCodeEnum.SUCCESS);
             response.setMessage("预测成功");
             response.setPredictedValues(predictedValues);
+            response.setPredictedValuesMmol(predictedValuesMmol);
             response.setPredictedTimes(predictedTimes);
             response.setConfidence(0.85);
             log.info("predictGlucose - 预测完成, patientId: {}, predictedCount: {}",
@@ -170,8 +178,27 @@ public class GlucosePredictionServiceImpl implements GlucosePredictionAPI {
     }
 
 
-    // TODO 修改为Python
     private List<Double> predictWithPythonService(PredictGlucoseRequest request) {
+        try {
+            PythonPredictClient.PythonPredictResponse pythonResponse = pythonPredictClient.predict(request);
+
+            if (pythonResponse == null || pythonResponse.getGlucoseMgDl() == null || pythonResponse.getGlucoseMgDl().isEmpty()) {
+                log.warn("predictWithPythonService - Python服务返回空结果，回退到本地模拟预测");
+                return fallbackPredict(request);
+            }
+
+            log.info("predictWithPythonService - Python预测成功, resultCount: {}, predictHours: {}, intervalMinutes: {}",
+                    pythonResponse.getGlucoseMgDl().size(), pythonResponse.getPredictHours(), pythonResponse.getIntervalMinutes());
+
+            return pythonResponse.getGlucoseMgDl();
+        } catch (Exception e) {
+            log.error("predictWithPythonService - 调用Python预测服务失败，回退到本地模拟预测, patientId: {}",
+                    request.getPatientId(), e);
+            return fallbackPredict(request);
+        }
+    }
+
+    private List<Double> fallbackPredict(PredictGlucoseRequest request) {
         List<Double> cbg = request.getCbg();
         int predictHours = request.getPredictHours() != null ? request.getPredictHours() : 3;
         int steps = predictHours * 12;

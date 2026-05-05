@@ -1,11 +1,16 @@
+"""
+LSTM model for blood glucose prediction.
+Predicts CHANGE (delta) from current cbg value, not absolute values.
+This forces the model to use the current glucose level as a baseline.
+"""
+from __future__ import annotations
 import torch as t
 import torch.nn as nn
 
 
 class GlucoseSeq2SeqLSTM(nn.Module):
     """
-    历史多变量序列 -> 未来多步 CGM（缩放空间中的 cbg）。
-    使用 LayerNorm 处理变长 batch 统计，避免 BatchNorm1d 与 (B, T, F) 误用。
+    LSTM with residual connection: predicts delta from last observed cbg.
     """
 
     def __init__(
@@ -37,7 +42,11 @@ class GlucoseSeq2SeqLSTM(nn.Module):
         )
 
     def forward(self, x: t.Tensor) -> t.Tensor:
+        # cbg is at index 0 in the feature columns
+        last_cbg = x[:, -1, 0:1]  # [B, 1]
         x = self.input_ln(x)
         out, _ = self.lstm(x)
         last = out[:, -1, :]
-        return self.head(last)
+        delta = self.head(last)  # [B, prediction_steps]
+        # Add residual: predicted = last_cbg + delta
+        return last_cbg + delta
