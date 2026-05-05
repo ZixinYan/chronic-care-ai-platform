@@ -42,8 +42,9 @@ class GlucoseSeq2SeqLSTM(nn.Module):
         )
 
     def forward(self, x: t.Tensor) -> t.Tensor:
-        # cbg is at index 0 in the feature columns
-        last_cbg = x[:, -1, 0:1]  # [B, 1]
+        # cbg is at index 7 in the feature columns:
+        # [finger, basal, hr, gsr, carbInput, bolus, meal_status, cbg]
+        last_cbg = x[:, -1, 7:8]  # [B, 1]
         x = self.input_ln(x)
         out, _ = self.lstm(x)
         last = out[:, -1, :]
