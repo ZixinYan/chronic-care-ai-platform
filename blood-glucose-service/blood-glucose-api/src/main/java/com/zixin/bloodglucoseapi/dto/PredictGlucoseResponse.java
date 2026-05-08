@@ -20,6 +20,11 @@ public class PredictGlucoseResponse extends BaseResponse implements Serializable
     private List<Double> predictedValues;
     
     /**
+     * 预测的未来血糖值列表 (mmol/L)
+     */
+    private List<Double> predictedValuesMmol;
+    
+    /**
      * 预测时间点列表 (时间戳)
      */
     private List<Long> predictedTimes;

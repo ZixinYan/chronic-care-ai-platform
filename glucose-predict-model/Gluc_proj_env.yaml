@@ -1,0 +1,19 @@
+# GPU 训练（如 RTX 5070）：请在本机安装与显卡驱动匹配的 PyTorch CUDA 版
+# （conda 中 pinned 的 pytorch==2.1.0 可能过旧），推荐：https://pytorch.org/get-started/locally/
+# 多卡时可用环境变量 CUDA_VISIBLE_DEVICES=0 指定 GPU。
+name: Gluc_proj_env
+channels:
+  - pytorch
+  - defaults
+dependencies:
+  - scipy==1.11.3
+  - numpy==1.23.5
+  - pandas==1.5.3
+  - pytorch==2.1.0
+  - matplotlib==3.7.1
+  - scikit-learn==1.2.2
+  - joblib
+  - pip
+  - pip:
+    - fastapi>=0.109.0,<1
+    - "uvicorn[standard]>=0.27.0,<1"
