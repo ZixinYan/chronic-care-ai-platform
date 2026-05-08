@@ -16,6 +16,7 @@
         <module name="account-provider" />
         <module name="message-system-consumer" />
         <module name="auth-provider" />
+        <module name="ai-capability-api" />
         <module name="account-api" />
         <module name="third-party-api" />
         <module name="message-system-provider" />
