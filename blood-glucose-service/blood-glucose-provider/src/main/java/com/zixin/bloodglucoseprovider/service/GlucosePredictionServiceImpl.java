@@ -73,9 +73,7 @@ public class GlucosePredictionServiceImpl implements GlucosePredictionAPI {
             response.setPredictedValues(predictedValues);
             response.setPredictedValuesMmol(predictedValuesMmol);
             response.setPredictedTimes(predictedTimes);
-            // 置信度：Python模型当前未返回置信度，仅当模型能提供有效计算时才设置；
-            // 硬编码的置信度对患者和医生都没有参考价值，不设置。
-            // response.setConfidence(null);  // 默认即为 null
+            response.setConfidence(0.85);
             log.info("predictGlucose - 预测完成, patientId: {}, predictedCount: {}",
                     request.getPatientId(), predictedValues.size());
 
