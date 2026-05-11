@@ -35,8 +35,12 @@ public class SMSServiceImpl implements SMSAPI {
         headers.put("Authorization", "APPCODE " + appCode);
         // 根据阿里云短信服务的API文档，构建查询参数
         Map<String, String> querys = new HashMap<String, String>();
-        querys.put("content", "【健康智能小助手】杂鱼大哥哥，你的验证码是：" + sendSMSRequest.getCode()+ "，5分钟内有效！");
+        log.info("phone: {}, code: {}", sendSMSRequest.getPhone(), sendSMSRequest.getCode());
         querys.put("mobile", sendSMSRequest.getPhone());
+        querys.put("param", "**code**:"+ sendSMSRequest.getCode()  + ",**minute**:5");
+        querys.put("smsSignId", "2e65b1bb3d054466b82f0c9d125465e2");
+        // TODO : 模版ID需要替换成实际的模版ID
+        querys.put("templateId", "908e94ccf08b4476ba6c876d13f084ad");
         Map<String, String> bodys = new HashMap<String, String>();
         try {
             HttpResponse response = HttpUtils.doPost(host, path, method, headers, querys, bodys);

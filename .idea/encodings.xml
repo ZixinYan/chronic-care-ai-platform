@@ -1,12 +1,71 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
   <component name="Encoding">
+    <file url="file://$PROJECT_DIR$/account-management/account-api/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/account-management/account-api/src/main/resources" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/account-management/account-provider/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/account-management/account-provider/src/main/resources" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/account-management/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/account-management/src/main/resources" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/ai-capability-service/ai-capability-api/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/ai-capability-service/ai-capability-api/src/main/resources" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/ai-capability-service/ai-capability-consumer/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/ai-capability-service/ai-capability-consumer/src/main/resources" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/ai-capability-service/ai-capability-provider/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/ai-capability-service/ai-capability-provider/src/main/resources" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/ai-capability-service/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/ai-capability-service/src/main/resources" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/auth-server/auth-api/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/auth-server/auth-api/src/main/resources" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/auth-server/auth-consumer/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/auth-server/auth-consumer/src/main/resources" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/auth-server/auth-provider/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/auth-server/auth-provider/src/main/resources" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/auth-server/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/auth-server/src/main/resources" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/blood-glucose-service/blood-glucose-api/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/blood-glucose-service/blood-glucose-api/src/main/resources" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/blood-glucose-service/blood-glucose-consumer/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/blood-glucose-service/blood-glucose-consumer/src/main/resources" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/blood-glucose-service/blood-glucose-provider/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/blood-glucose-service/blood-glucose-provider/src/main/resources" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/blood-glucose-service/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/blood-glucose-service/src/main/resources" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/doctor-service/doctor-service-api/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/doctor-service/doctor-service-api/src/main/resources" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/doctor-service/doctor-service-consumer/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/doctor-service/doctor-service-consumer/src/main/resources" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/doctor-service/doctor-service-provider/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/doctor-service/doctor-service-provider/src/main/resources" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/doctor-service/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/doctor-service/src/main/resources" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/gateway/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/gateway/src/main/resources" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/health-report-center/health-center-api/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/health-report-center/health-center-api/src/main/resources" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/health-report-center/health-center-consumer/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/health-report-center/health-center-consumer/src/main/resources" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/health-report-center/health-center-provider/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/health-report-center/health-center-provider/src/main/resources" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/health-report-center/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/health-report-center/src/main/resources" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/message-system/message-system-api/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/message-system/message-system-api/src/main/resources" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/message-system/message-system-consumer/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/message-system/message-system-consumer/src/main/resources" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/message-system/message-system-provider/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/message-system/message-system-provider/src/main/resources" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/message-system/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/message-system/src/main/resources" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/src/main/resources" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/third-party-service/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/third-party-service/src/main/resources" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/third-party-service/third-party-api/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/third-party-service/third-party-api/src/main/resources" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/third-party-service/third-party-provider/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/third-party-service/third-party-provider/src/main/resources" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/utils/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/utils/src/main/resources" charset="UTF-8" />
   </component>
 </project>

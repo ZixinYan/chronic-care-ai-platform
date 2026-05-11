@@ -14,6 +14,13 @@ public interface LoginWithPhoneAPI {
      */
     Result login(LoginRequest loginRequest);
     /**
+     * Login with phone number and SMS verification code
+     * @param phone 手机号
+     * @param code  短信验证码
+     * @return 登录结果(包含Token)
+     */
+    Result loginByPhone(String phone, String code);
+    /**
      * Register with phone number
      * @param registerRequest
      * @return

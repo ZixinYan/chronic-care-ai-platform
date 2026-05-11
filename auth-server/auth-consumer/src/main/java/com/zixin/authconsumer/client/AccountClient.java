@@ -20,6 +20,14 @@ public class AccountClient {
         return accountManagementAPI.login(loginRequest);
     }
 
+    /**
+     * 手机号登录(验证码模式)
+     * 根据手机号查找用户并返回用户信息，无需密码验证
+     */
+    public LoginResponse loginByPhone(LoginByPhoneRequest request) {
+        return accountManagementAPI.loginByPhone(request);
+    }
+
     public RegisterResponse register(RegisterRequest registerRequest) {
         return accountManagementAPI.register(registerRequest);
     }

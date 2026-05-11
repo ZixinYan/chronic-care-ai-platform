@@ -19,7 +19,7 @@ import java.util.Date;
  * - emergencyPhone: 紧急联系人电话(已加密)
  */
 @Data
-@TableName("care_platform_patient")
+@TableName(value = "care_platform_patient", autoResultMap = true)
 public class Patient implements Serializable {
     private final static long serialVersionUID = 1L;
     
