@@ -18,7 +18,7 @@ public class MessageClient {
     @DubboReference(timeout = 50000)
     private MessageAPI messageAPI;
 
-    private final ExecutorService messageExecutor = Executors.newFixedThreadPool(10);
+    private final ExecutorService messageExecutor = Executors.newFixedThreadPool(2);
 
     public void sendMessageAsync(Long userId, SendMessageRequest request) {
         CompletableFuture.supplyAsync(() -> {

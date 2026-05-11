@@ -54,8 +54,8 @@ public class SSOController {
     private final AccountClient accountClient;
 
     /**
-     * 用户登录
-     * 
+     * 用户登录(账号+密码模式)
+     *
      * @param loginRequest 登录请求(包含账号和密码)
      * @return 包含Token的登录结果
      */
@@ -63,6 +63,29 @@ public class SSOController {
     public Result<?> login(@RequestBody LoginRequest loginRequest) {
         log.info("Login request received for account: {}", loginRequest.getLoginAccount());
         return ssoService.login(loginRequest);
+    }
+
+    /**
+     * 手机号+验证码登录
+     *
+     * @param request 登录请求(包含phone, code, loginType)
+     * @return 包含Token的登录结果
+     */
+    @PostMapping("/login/phone")
+    public Result<?> loginByPhone(@RequestBody Map<String, String> request) {
+        String phone = request.get("phone");
+        String code = request.get("code");
+        String loginType = request.get("loginType");
+
+        log.info("Phone login request received for phone: {}, loginType: {}", phone, loginType);
+
+        // 验证loginType
+        if (!"phone".equals(loginType)) {
+            log.warn("Invalid loginType for phone login: {}", loginType);
+            return Result.error("不支持的登录方式");
+        }
+
+        return ssoService.loginByPhone(phone, code);
     }
 
     /**

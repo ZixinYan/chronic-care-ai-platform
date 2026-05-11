@@ -35,6 +35,7 @@ import com.zixin.healthcenterprovider.mapper.HealthReportMapper;
 import com.zixin.messageapi.dto.SendMessageRequest;
 import com.zixin.messageapi.enums.MessageType;
 import com.zixin.utils.context.UserInfoManager;
+import com.zixin.utils.exception.BusinessException;
 import com.zixin.utils.exception.ToBCodeEnum;
 
 import lombok.extern.slf4j.Slf4j;
@@ -972,6 +973,26 @@ public class HealthReportServiceImpl implements HealthReportAPI {
                         request.getReportId(), oldDoctorId, request.getDoctorId());
             }
 
+            // 参考预约医生逻辑：发送报告审批前先检查医生是否有空
+            String todayStr = DoctorClient.getTodayStr();
+            long[] timeRange = DoctorClient.getTodayDefaultTimeRange();
+
+            String availabilityError = doctorClient.checkDoctorAvailability(
+                    request.getDoctorId(),
+                    todayStr,
+                    timeRange[0],
+                    timeRange[1],
+                    isSwitching ? oldScheduleId : null
+            );
+
+            if (!availabilityError.isEmpty()) {
+                log.warn("sendReportToDoctor - 医生不可用, doctorId: {}, reportId: {}, reason: {}",
+                        request.getDoctorId(), request.getReportId(), availabilityError);
+                response.setCode(ToBCodeEnum.FAIL);
+                response.setMessage(availabilityError);
+                return response;
+            }
+
             if (isSwitching && oldScheduleId != null) {
                 boolean cancelSuccess = doctorClient.cancelSchedule(
                         oldScheduleId,
@@ -993,17 +1014,19 @@ public class HealthReportServiceImpl implements HealthReportAPI {
                     report.getFileUrl()
             );
 
-            Long newScheduleId = doctorClient.addSchedule(
-                    doctor.getUserId(),
-                    patient.getUserId(),
-                    doctor.getUsername(),
-                    scheduleVO
-            );
-
-            if (newScheduleId == null) {
-                log.error("sendReportToDoctor - 添加排班失败, doctorId: {}", request.getDoctorId());
+            Long newScheduleId;
+            try {
+                newScheduleId = doctorClient.addSchedule(
+                        doctor.getUserId(),
+                        patient.getUserId(),
+                        doctor.getUsername(),
+                        scheduleVO
+                );
+            } catch (BusinessException e) {
+                log.error("sendReportToDoctor - 添加排班失败, doctorId: {}, error: {}",
+                        request.getDoctorId(), e.getMessage());
                 response.setCode(ToBCodeEnum.FAIL);
-                response.setMessage("添加医生日程失败");
+                response.setMessage(e.getMessage());
                 return response;
             }
 
@@ -1190,20 +1213,6 @@ public class HealthReportServiceImpl implements HealthReportAPI {
     }
 
     /**
-     * 构建患者数据JSON
-     */
-    private String buildPatientDataJson(GenerateAIReportRequest request) {
-        // 【TODO: 根据实际需要使用更完善的JSON构建方式】
-        StringBuilder sb = new StringBuilder();
-        sb.append("{");
-        sb.append("\"predictedGlucose\":").append(request.getPredictedGlucoseValues()).append(",");
-        sb.append("\"mealType\":").append(request.getMealType()).append(",");
-        sb.append("\"predictStartTime\":").append(request.getPredictStartTime());
-        sb.append("}");
-        return sb.toString();
-    }
-
-    /**
      * 分析当前血糖数据
      */
     private GlucoseAnalysisResult analyzeCurrentGlucose(List<Double> values) {
@@ -1355,8 +1364,10 @@ public class HealthReportServiceImpl implements HealthReportAPI {
                 predicted.getMaxValue(), predicted.getMaxValueMmol()));
         content.append(String.format("- **预测最低值**: %.2f mg/dL (%.2f mmol/L)\n",
                 predicted.getMinValue(), predicted.getMinValueMmol()));
-        content.append(String.format("- **预测置信度**: %.0f%%\n\n",
-                request.getConfidence() != null ? request.getConfidence() * 100 : 85));
+        if (request.getConfidence() != null) {
+            content.append(String.format("- **预测置信度**: %.0f%%\n\n",
+                    request.getConfidence() * 100));
+        }
 
         // 预测阈值判断
         content.append("### 2. 阈值检测\n\n");
@@ -1502,6 +1513,7 @@ public class HealthReportServiceImpl implements HealthReportAPI {
         
         ReportCategory reportCategory = ReportCategory.fromCode(report.getCategory());
         if (reportCategory != null) {
+            vo.setCategory(reportCategory.getDescription());
             vo.setCategoryDesc(reportCategory.getDescription());
         }
         
@@ -1561,7 +1573,7 @@ public class HealthReportServiceImpl implements HealthReportAPI {
         scheduleVO.setPriorityDesc(priority.getDescription());
 
         // 分类设置
-        scheduleVO.setScheduleCategory(String.valueOf(category));
+        scheduleVO.setScheduleCategory(categoryName);
         scheduleVO.setScheduleCategoryName(categoryName);
 
         scheduleVO.setLink(link);
@@ -1574,7 +1586,7 @@ public class HealthReportServiceImpl implements HealthReportAPI {
 
     private void setDefaultTimeRange(ScheduleVO scheduleVO) {
         LocalDate today = LocalDate.now();
-        scheduleVO.setScheduleDay(today.format(DateTimeFormatter.ofPattern("yyyyMMdd")));
+        scheduleVO.setScheduleDay(today.format(DateTimeFormatter.ofPattern("yyyy-MM-dd")));
         scheduleVO.setStartTime(today.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli());
         scheduleVO.setEndTime(today.plusDays(1).atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli());
     }

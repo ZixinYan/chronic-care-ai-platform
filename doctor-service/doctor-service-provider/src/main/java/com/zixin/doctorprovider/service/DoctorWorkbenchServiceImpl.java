@@ -38,6 +38,8 @@ import java.util.Calendar;
 import java.util.Date;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.stream.Collectors;
 
 /**
@@ -80,6 +82,9 @@ public class DoctorWorkbenchServiceImpl implements DoctorWorkbenchAPI {
         this.aiClient = aiClient;
         this.doctorLeaveAPI = doctorLeaveAPI;
     }
+
+    /** 异步生成电子病历的专用线程池（减少线程数以降低系统负载） */
+    private final ExecutorService recordExecutor = Executors.newFixedThreadPool(2);
 
     @Override
     public QueryScheduleResponse querySchedule(QueryScheduleRequest request) {
@@ -253,8 +258,8 @@ public class DoctorWorkbenchServiceImpl implements DoctorWorkbenchAPI {
                 // 查询更新后的日程
                 DoctorSchedule updated = scheduleMapper.selectById(request.getScheduleId());
 
-                // 异步生成电子病历（使用独立线程，避免阻塞主流程）
-                CompletableFuture.runAsync(() -> generateMedicalRecord(schedule, request));
+                // 异步生成电子病历（使用独立线程池，避免阻塞主流程）
+                CompletableFuture.runAsync(() -> generateMedicalRecord(schedule, request), recordExecutor);
 
                 response.setCode(ToBCodeEnum.SUCCESS);
                 response.setMessage("完成日程成功");
@@ -533,9 +538,7 @@ public class DoctorWorkbenchServiceImpl implements DoctorWorkbenchAPI {
                 log.warn("Doctor is on leave, cannot add schedule, doctorId: {}, day: {}",
                         schedule.getDoctorId(), schedule.getScheduleDay());
                 response.setCode(ToBCodeEnum.FAIL);
-                response.setMessage("医生在当天休假，无法预约。休假原因: " + 
-                        (leaveResponse.getLeaveInfo() != null && leaveResponse.getLeaveInfo().getReason() != null 
-                                ? leaveResponse.getLeaveInfo().getReason() : "无"));
+                response.setMessage("医生在当天休假，无法预约。");
                 return response;
             }
 

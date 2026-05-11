@@ -10,6 +10,14 @@ public interface AccountManagementAPI {
      */
     LoginResponse login(LoginRequest logInRequest);
     /**
+     * 手机号登录(验证码模式)
+     * 根据手机号查找用户并返回用户信息，无需密码验证
+     * 密码验证由SSO层通过短信验证码完成
+     * @param request 手机号登录请求
+     * @return 登录响应(包含用户信息、角色、权限)
+     */
+    LoginResponse loginByPhone(LoginByPhoneRequest request);
+    /**
      * 用户注册
      * @param registerRequest
      * @return

@@ -149,7 +149,9 @@ public class GlucosePredictionController {
         content.append("血糖预测报告\n");
         content.append("预测时长: ").append(predictHours).append(" 小时\n");
         content.append("用餐状态: ").append(mealLabel).append("\n");
-        content.append("预测置信度: ").append(String.format("%.0f%%", prediction.getConfidence() * 100)).append("\n");
+        if (prediction.getConfidence() != null) {
+            content.append("预测置信度: ").append(String.format("%.0f%%", prediction.getConfidence() * 100)).append("\n");
+        }
         content.append("预测血糖值(mg/dL): ").append(prediction.getPredictedValues()).append("\n");
 
         String healthSuggestions = generateAIHealthSuggestions(

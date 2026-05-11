@@ -58,6 +58,7 @@ public class TraceAndJwtAuthFilter implements GlobalFilter, Ordered {
             "/api/auth/login",
             "/api/auth/register",
             "/api/auth/refresh",
+            "/api/auth/login/phone",
             "/api/auth/validate",
             "/api/auth/sms/code", 
             "/actuator/**",
@@ -158,8 +159,10 @@ public class TraceAndJwtAuthFilter implements GlobalFilter, Ordered {
                             });
                 })
                 .onErrorResume(e -> {
-                    log.error("Error during JWT validation", e);
-                    return unauthorized(exchange, traceId, "Authentication failed");
+                    // Dubbo调用失败(如auth-server未启动)时，返回503而非401
+                    // 因为问题在于服务不可用，而非用户的凭证无效
+                    log.error("Authentication service unavailable, returning 503", e);
+                    return serviceUnavailable(exchange, traceId, "Authentication service is currently unavailable");
                 });
     }
 
@@ -220,6 +223,8 @@ public class TraceAndJwtAuthFilter implements GlobalFilter, Ordered {
     /**
      * 异步验证Token
      * 通过Dubbo调用auth-server的TokenValidationAPI
+     * 注意: 当Dubbo调用失败(如auth-server不可用)时，让错误向上传播，
+     * 由上层filter的onErrorResume统一处理为503，而不是错误地返回401
      */
     private Mono<ValidateTokenResponse> validateTokenAsync(String token) {
         return Mono.fromCallable(() -> {
@@ -227,23 +232,13 @@ public class TraceAndJwtAuthFilter implements GlobalFilter, Ordered {
                     request.setToken(token);
                     ValidateTokenResponse response = tokenValidationAPI.validateToken(request);
                     if (response == null) {
-                        ValidateTokenResponse fallback = new ValidateTokenResponse();
-                        fallback.setValid(false);
-                        fallback.setMessage("Empty token validation response");
-                        return fallback;
+                        // 服务返回null属于异常情况，抛出异常让上层处理为503
+                        throw new RuntimeException("Empty token validation response from auth service");
                     }
                     return response;
                 })
                 // Dubbo 同步调用会阻塞，必须切到弹性线程池，避免阻塞 Netty 事件循环
-                .subscribeOn(Schedulers.boundedElastic())
-                .onErrorResume(e -> {
-                    log.error("Failed to validate token via Dubbo", e);
-                    ValidateTokenResponse fallback = new ValidateTokenResponse();
-                    fallback.setValid(false);
-                    fallback.setMessage("Dubbo token validation failed");
-                    return Mono.just(fallback);
-                });
-
+                .subscribeOn(Schedulers.boundedElastic());
     }
 
     /**
@@ -253,6 +248,20 @@ public class TraceAndJwtAuthFilter implements GlobalFilter, Ordered {
         log.warn("Unauthorized access: {}", message);
         exchange.getResponse().setStatusCode(HttpStatus.UNAUTHORIZED);
         exchange.getResponse().getHeaders().add("trace-context","unauthorized");
+        if (traceId != null && !traceId.isEmpty()) {
+            exchange.getResponse().getHeaders().add(TRACE_ID, traceId);
+        }
+        return exchange.getResponse().setComplete();
+    }
+
+    /**
+     * 返回503服务不可用响应
+     * 当认证服务(auth-server)不可用时使用，区别于Token无效的401
+     */
+    private Mono<Void> serviceUnavailable(ServerWebExchange exchange, String traceId, String message) {
+        log.error("Service unavailable: {}", message);
+        exchange.getResponse().setStatusCode(HttpStatus.SERVICE_UNAVAILABLE);
+        exchange.getResponse().getHeaders().add("trace-context", "service-unavailable");
         if (traceId != null && !traceId.isEmpty()) {
             exchange.getResponse().getHeaders().add(TRACE_ID, traceId);
         }

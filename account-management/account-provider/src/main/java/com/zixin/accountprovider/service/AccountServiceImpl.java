@@ -144,6 +144,57 @@ public class AccountServiceImpl extends ServiceImpl<UserMapper, User> implements
     }
 
     @Override
+    public LoginResponse loginByPhone(LoginByPhoneRequest request) {
+        String phone = request.getPhone();
+        LoginResponse loginResponse = new LoginResponse();
+
+        // 1. Validate phone number
+        if (!StringUtils.hasText(phone)) {
+            log.warn("Phone login failed - empty phone number");
+            loginResponse.setCode(ToBCodeEnum.FAIL);
+            loginResponse.setMessage("手机号不能为空");
+            return loginResponse;
+        }
+
+        // 2. Find user by phone hash
+        User user;
+        try {
+            String phoneHash = generateHash(phone);
+            user = this.baseMapper.selectOne(new LambdaQueryWrapper<User>()
+                    .eq(User::getPhoneHash, phoneHash)
+                    .last("LIMIT 1"));
+        } catch (Exception e) {
+            log.error("Failed to query user by phone: {}, error: {}", phone, e.getMessage());
+            loginResponse.setCode(ToBCodeEnum.FAIL);
+            loginResponse.setMessage("系统错误，请稍后重试");
+            return loginResponse;
+        }
+
+        if (user == null) {
+            log.warn("Phone login failed - user not found for phone: {}", phone);
+            loginResponse.setCode(ToBCodeEnum.FAIL);
+            loginResponse.setMessage("该手机号未注册");
+            return loginResponse;
+        }
+
+        // 3. Get user roles and permissions
+        List<Integer> roleCodes = getUserRoleCodes(user.getUserId());
+        Set<String> permissions = getUserPermissions(roleCodes);
+
+        // 4. Build response (skip password verification since auth is via SMS code)
+        LoginResponse.LoginUserDTO userDTO = buildLoginUserDTO(user, roleCodes, permissions);
+
+        log.info("Phone login user data - userId: {}, phone: {}, email: {}", user.getUserId(), user.getPhone(), user.getEmail());
+
+        loginResponse.setData(userDTO);
+        loginResponse.setCode(ToBCodeEnum.SUCCESS);
+        loginResponse.setMessage("手机号登录成功");
+
+        log.info("Phone login successful - userId: {}", user.getUserId());
+        return loginResponse;
+    }
+
+    @Override
     @Transactional(rollbackFor = Exception.class)
     public RegisterResponse register(RegisterRequest registerRequest) {
         RegisterResponse registerResponse = new RegisterResponse();
@@ -786,16 +837,6 @@ public class AccountServiceImpl extends ServiceImpl<UserMapper, User> implements
         if (patient == null) {
             return true;
         }
-        Long doctorId = patient.getAttendingDoctorId();
-        if (doctorId == null) {
-            return true;
-        }
-        // 1. Check if doctor exists
-        DoctorVO doctor = userIdentityService.getDoctorInfoByUserId(doctorId).getDoctor();
-        if (doctor == null) {
-            return true;
-        }
-        patient.setAttendingDoctorName(doctor.getUsername());
         return false;
     }
 

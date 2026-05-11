@@ -187,6 +187,92 @@ public class SSOServiceImpl implements LoginWithPhoneAPI {
     }
 
     @Override
+    public Result<?> loginByPhone(String phone, String code) {
+        // 1. 校验参数
+        if (phone == null || phone.trim().isEmpty()) {
+            log.warn("Phone login failed - empty phone number");
+            return Result.error("手机号不能为空");
+        }
+        if (code == null || code.trim().isEmpty()) {
+            log.warn("Phone login failed - empty SMS code");
+            return Result.error("验证码不能为空");
+        }
+
+        // 2. 验证短信验证码
+        if (!verifySmsCode(phone, code)) {
+            log.warn("Phone login failed - invalid SMS code for phone: {}", phone);
+            return Result.error("验证码错误或已过期");
+        }
+
+        try {
+            // 3. 通过手机号查找用户信息(跳过密码验证)
+            LoginByPhoneRequest loginByPhoneRequest = new LoginByPhoneRequest();
+            loginByPhoneRequest.setPhone(phone);
+            LoginResponse loginResponse = accountClient.loginByPhone(loginByPhoneRequest);
+
+            if (loginResponse.getCode() != ToBCodeEnum.SUCCESS) {
+                log.warn("Phone login failed: {}", loginResponse.getMessage());
+                return Result.error(loginResponse.getMessage());
+            }
+
+            LoginResponse.LoginUserDTO loginUserDTO = loginResponse.getData();
+
+            Long userId = loginUserDTO.getUserId();
+            String username = loginUserDTO.getUsername();
+            List<String> roleNames = loginUserDTO.getRole();
+            Set<String> permissions = loginUserDTO.getPermission();
+
+            if (userId == null || username == null) {
+                log.error("Phone login response invalid: userId or username is null");
+                return Result.error("用户信息异常");
+            }
+
+            // 4. 生成双Token (Access Token + Refresh Token)
+            GenTokenRequest genTokenRequest = new GenTokenRequest();
+            genTokenRequest.setUserId(userId);
+            genTokenRequest.setUsername(username);
+            genTokenRequest.setRoles(roleNames);
+            genTokenRequest.setPermissions(permissions);
+
+            GenTokenResponse tokenResponse = authClient.generateToken(genTokenRequest);
+            if (tokenResponse.getCode() != ToBCodeEnum.SUCCESS) {
+                log.error("Failed to generate JWT for phone login: {}", tokenResponse.getMessage());
+                return Result.error("令牌生成失败");
+            }
+
+            if (tokenResponse.getAccessToken() == null || tokenResponse.getRefreshToken() == null) {
+                log.error("Token generation returned null tokens for phone login");
+                return Result.error("令牌生成失败");
+            }
+
+            // 5. 构建返回结果
+            Map<String, Object> data = new HashMap<>();
+            data.put("userId", userId);
+            data.put("username", username);
+            data.put("nickname", loginUserDTO.getNickname());
+            data.put("avatarUrl", loginUserDTO.getAvatarUrl());
+            data.put("phone", loginUserDTO.getPhone());
+            data.put("email", loginUserDTO.getEmail());
+            data.put("gender", loginUserDTO.getGender());
+            data.put("address", loginUserDTO.getAddress());
+            data.put("birthday", loginUserDTO.getBirthday());
+            data.put("accessToken", tokenResponse.getAccessToken());
+            data.put("refreshToken", tokenResponse.getRefreshToken());
+            data.put("tokenType", tokenResponse.getTokenType());
+            data.put("role", roleNames);
+            data.put("permission", new ArrayList<>(permissions));
+
+            log.info("User logged in by phone successfully - userId: {}, username: {}, role: {}, permission: {}",
+                    userId, username, roleNames, permissions);
+            return Result.success(data);
+
+        } catch (Exception e) {
+            log.error("Phone login failed with exception", e);
+            return Result.error("手机号登录失败: " + e.getMessage());
+        }
+    }
+
+    @Override
     public Result<?> register(RegisterRequest registerRequest) {
         // 1. 调用account服务进行注册
         RegisterResponse response;

@@ -201,7 +201,8 @@
         SELECT * FROM doctor_schedule
         WHERE doctor_id = #{doctorId}
           AND schedule_day = #{scheduleDay}
-          AND status != 'CANCELLED'
+          AND status NOT IN ('CANCELLED', 'COMPLETED')
+          AND schedule_category != '线上审批'
           AND start_time &lt; #{endTime}
           AND end_time &gt; #{startTime}
           <if test="excludeScheduleId != null">
@@ -214,7 +215,8 @@
         SELECT * FROM doctor_schedule
         WHERE doctor_id = #{doctorId}
           AND schedule_day = #{scheduleDay}
-          AND status != 'CANCELLED'
+          AND status NOT IN ('CANCELLED', 'COMPLETED')
+          AND schedule_category != '线上审批'
         ORDER BY start_time ASC
     </select>
 

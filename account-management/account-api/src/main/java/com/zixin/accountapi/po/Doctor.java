@@ -19,7 +19,7 @@ import java.util.Date;
  * - certificationNumber: 执业证书编号(已加密)
  */
 @Data
-@TableName("care_platform_doctor")
+@TableName(value = "care_platform_doctor", autoResultMap = true)
 public class Doctor implements Serializable {
     private final static long serialVersionUID = 1L;
     
